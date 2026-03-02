@@ -1,0 +1,225 @@
+# Agentic Harness — Architecture
+
+## System Overview
+
+The harness is a Python CLI application that orchestrates AI coding agents. It loads task definitions, creates isolated sandboxes, invokes agents as subprocesses, parses their output, normalizes token usage, and generates evaluation reports.
+
+```
+┌─────────────────────────────────────────────────┐
+│                  harness CLI                     │
+│                  (cli.py)                        │
+├─────────────────────────────────────────────────┤
+│               Orchestrator                       │
+│               (runner.py)                        │
+├──────────┬──────────┬───────────┬───────────────┤
+│ Dispatch │ Sandbox  │  Capture  │  Evaluation   │
+│          │          │           │               │
+│ Load     │ Temp dir │ Parse     │ Validate      │
+│ task     │ Seed     │ JSON      │ Score         │
+│ JSON     │ files    │ Normalize │ Report        │
+│ Invoke   │ Setup    │ tokens    │               │
+│ agent    │ cmds     │ Diff      │               │
+├──────────┴──────────┴───────────┴───────────────┤
+│              Agent Adapters                      │
+│     claude.py   codex.py   gemini.py            │
+└─────────────────────────────────────────────────┘
+```
+
+## Project Structure
+
+```
+agentic_harness/
+    pyproject.toml
+    src/
+        agentic_harness/
+            __init__.py
+            cli.py                  # Click-based CLI entrypoint
+            runner.py               # Orchestrator: runs tasks against agents
+            models.py               # Core dataclasses/TypedDicts
+            tokens.py               # Token normalization logic
+            sandbox.py              # Execution isolation (worktrees/tmp dirs)
+            evaluate.py             # Result evaluation and scoring
+            agents/
+                __init__.py
+                base.py             # AgentAdapter protocol
+                claude.py           # Claude Code adapter
+                codex.py            # Codex CLI adapter
+                gemini.py           # Gemini CLI adapter
+    tasks/
+        example_fizzbuzz.json       # Example task definition
+    results/                        # Default output directory (gitignored)
+    tests/
+```
+
+## Four Subsystems
+
+### 1. Task Dispatch (`runner.py`)
+
+Loads a `TaskDefinition` from JSON and invokes the appropriate agent adapter. The orchestrator handles the full lifecycle: sandbox creation, agent invocation, output capture, validation, cleanup.
+
+### 2. Execution Isolation (`sandbox.py`)
+
+Creates a temporary directory for each run. Seed files from the task definition are written into it. Setup commands (e.g. `git init`, `python3 -m venv .venv`) run before the agent is invoked. The agent's `cwd` is set to the sandbox directory.
+
+Artifacts and diffs are captured *before* the sandbox is cleaned up.
+
+### 3. Output Capture (`agents/*.py`)
+
+Each adapter parses the agent's stdout (JSON or JSONL), extracts the result text, and normalizes token usage into a unified model. Raw output is preserved for debugging.
+
+### 4. Evaluation (`evaluate.py`)
+
+Runs `validation_commands` in the sandbox after the agent finishes. Scoring is binary — all commands pass (score 1.0) or any fails (score 0.0). Results are written to a structured JSON report.
+
+## Agent Adapter Interface
+
+Uses Python `Protocol` (structural typing). Adapters don't inherit from a base class — they match the shape:
+
+```python
+@runtime_checkable
+class AgentAdapter(Protocol):
+    """Protocol all agent adapters must satisfy."""
+
+    @property
+    def name(self) -> str:
+        """Human-readable agent name, e.g. 'claude-code'."""
+        ...
+
+    def is_available(self) -> bool:
+        """Check if the agent CLI is installed and callable."""
+        ...
+
+    async def run(
+        self, task: TaskDefinition, sandbox_path: Path
+    ) -> AgentResult:
+        """Execute the task in the given sandbox directory."""
+        ...
+```
+
+The `run` method is `async` because all three CLIs are subprocess invocations that benefit from `asyncio.create_subprocess_exec`.
+
+## Token Normalization Model
+
+Every agent's output is mapped into a unified `NormalizedTokenUsage`:
+
+```python
+@dataclass(frozen=True)
+class NormalizedTokenUsage:
+    """Unified token metrics across all agents."""
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    total_tokens: int = 0       # Computed: input + output
+```
+
+### Normalization Rules
+
+- `total_tokens` is always `input_tokens + output_tokens` — never pulled from agent-specific "total" fields
+- Thinking/reasoning tokens are excluded from the total
+- Cache tokens are tracked but not added to the total
+- Budget checks use `total_tokens`
+
+### Field Mapping
+
+| Normalized Field | Claude Code | Codex CLI | Gemini CLI |
+|---|---|---|---|
+| `input_tokens` | `usage.input_tokens` | sum of `usage.input_tokens` across `turn.completed` events | sum of `tokens.prompt` across models |
+| `output_tokens` | `usage.output_tokens` | sum of `usage.output_tokens` across `turn.completed` events | sum of `tokens.candidates` across models |
+| `cache_read_tokens` | `usage.cache_read_input_tokens` | sum of `usage.cached_input_tokens` across `turn.completed` events | sum of `tokens.cached` across models |
+| `cache_write_tokens` | `usage.cache_creation_input_tokens` | 0 (not reported) | 0 (not reported) |
+
+`cache_write_tokens` is only available from Claude Code. This asymmetry is documented, not hidden.
+
+### Budget Status
+
+```python
+class BudgetStatus(Enum):
+    WITHIN = "within"       # Under 80% of budget
+    WARNING = "warning"     # 80-100% of budget
+    EXCEEDED = "exceeded"   # Over budget
+```
+
+Budget analysis:
+
+```python
+def analyze_budget(usage, budget=70_000):
+    return {
+        "total_tokens": usage.total_tokens,
+        "budget": budget,
+        "utilization_pct": round(usage.total_tokens / budget * 100, 1),
+        "status": usage.budget_status(budget).value,
+        "remaining": max(0, budget - usage.total_tokens),
+        "cache_efficiency": {
+            "cache_read_tokens": usage.cache_read_tokens,
+            "cache_write_tokens": usage.cache_write_tokens,
+        },
+    }
+```
+
+## Execution Flow
+
+1. Load task definition from JSON
+2. Create isolated sandbox (temp directory)
+3. Seed files and run setup commands in sandbox
+4. Invoke agent CLI as subprocess in sandbox directory
+5. Parse agent's JSON output for token usage and result
+6. Normalize tokens into unified model
+7. Capture diff and artifacts before sandbox cleanup
+8. Run validation commands in sandbox
+9. Generate evaluation result
+10. Save structured JSON report to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`
+
+## CLI Design
+
+Built with [Click](https://click.palletsprojects.com/). Output formatting via [Rich](https://rich.readthedocs.io/).
+
+```
+Usage: harness [OPTIONS] COMMAND [ARGS]...
+
+Commands:
+  run       Run task(s) against agent(s)
+  list      List available tasks or agents
+  report    Generate summary from results
+```
+
+### `harness run`
+
+```
+Options:
+  -t, --task PATH       Task JSON file or directory [required]
+  -a, --agent TEXT      Agent: claude, codex, gemini, or "all" [default: all]
+  -o, --output PATH     Output directory [default: ./results]
+  --budget INTEGER      Token budget override [default: 70000]
+  --timeout INTEGER     Timeout override in seconds
+  --parallel            Run agents in parallel (future)
+  --dry-run             Show what would execute without running
+```
+
+### `harness list agents`
+
+```
+claude-code    available    /home/user/.local/bin/claude (v2.1.63)
+codex-cli      NOT FOUND    codex not in PATH
+gemini-cli     available    /usr/bin/gemini (v0.16.0)
+```
+
+## Dependencies
+
+| Package | Purpose |
+|---|---|
+| `click` | CLI framework |
+| *(stdlib `json`)* | Task definition parsing |
+| `rich` | Terminal output formatting |
+
+Python 3.12+. No ML/AI libraries — the harness only *invokes* agents, it doesn't run models.
+
+## Future: Multi-Agent
+
+The architecture supports multi-agent from day one:
+
+- The `AgentAdapter` protocol is agent-agnostic
+- `NormalizedTokenUsage` allows cross-agent comparison
+- The `--agent all` flag and `--parallel` flag are designed for this
+
+MVP implements single-agent sequential execution only. Multi-agent parallel dispatch is a documented future extension.

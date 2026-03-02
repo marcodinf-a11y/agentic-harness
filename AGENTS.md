@@ -1,0 +1,315 @@
+# Agentic Harness — Agent Integration Reference
+
+Per-agent invocation syntax, JSON output formats, token field mappings, and quirks.
+
+---
+
+## Claude Code (`claude` CLI)
+
+### Invocation
+
+```bash
+claude -p --output-format json --dangerously-skip-permissions --max-turns 50 "PROMPT"
+```
+
+Run via `asyncio.create_subprocess_exec` with `cwd` set to the sandbox directory.
+
+### Key CLI Flags
+
+| Flag | Purpose |
+|---|---|
+| `-p` / `--print` | Non-interactive (headless) mode |
+| `--output-format json` | Structured JSON output with result, session ID, metadata |
+| `--output-format stream-json` | Newline-delimited JSON for real-time streaming |
+| `--dangerously-skip-permissions` | Skip all permission prompts |
+| `--allowedTools "Bash,Read,Edit"` | Auto-approve specific tools |
+| `--max-budget-usd <amount>` | Stop execution at cost threshold |
+| `--max-turns <n>` | Limit agentic iterations |
+| `--continue` / `-c` | Continue most recent conversation |
+| `--resume <session_id>` | Resume a specific session |
+| `--append-system-prompt` | Add custom instructions |
+
+### JSON Output Format
+
+```json
+{
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 3302,
+    "duration_api_ms": 2918,
+    "num_turns": 1,
+    "result": "Hello! I'm Claude...",
+    "session_id": "3892c079-721c-4e63-b06b-38a0be87809b",
+    "total_cost_usd": 0.03988395,
+    "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 9443,
+        "cache_read_input_tokens": 13829,
+        "output_tokens": 21,
+        "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+            "ephemeral_1h_input_tokens": 9443,
+            "ephemeral_5m_input_tokens": 0
+        }
+    },
+    "modelUsage": {
+        "claude-sonnet-4-5-20250929": {
+            "inputTokens": 3,
+            "outputTokens": 21,
+            "cacheReadInputTokens": 13829,
+            "cacheCreationInputTokens": 9443,
+            "costUSD": 0.03988395,
+            "contextWindow": 200000,
+            "maxOutputTokens": 64000
+        }
+    }
+}
+```
+
+### Token Field Mapping
+
+```python
+def _normalize_claude(data: dict) -> NormalizedTokenUsage:
+    usage = data.get("usage", {})
+    return NormalizedTokenUsage(
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+        cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+    )
+```
+
+### Session Resume
+
+```bash
+session_id=$(claude -p "query" --output-format json | jq -r '.session_id')
+claude -p "next query" --resume "$session_id"
+```
+
+### Quirks and Limitations
+
+- **Two naming conventions**: The top-level `usage` block uses **snake_case** (`input_tokens`), while `modelUsage` uses **camelCase** (`inputTokens`). Parse from `usage` — it is the aggregate across all models.
+- **Cannot run inside another Claude Code session**: When the `CLAUDECODE` env var is set, `claude -p` fails. The adapter must unset `CLAUDECODE` or pass a clean `env` dict to the subprocess.
+- **Cost available**: `total_cost_usd` at top level, `costUSD` per model in `modelUsage`.
+
+---
+
+## Codex CLI (`codex` CLI)
+
+### Invocation
+
+```bash
+codex exec --json --full-auto "PROMPT"
+```
+
+### Key CLI Flags
+
+| Flag | Purpose |
+|---|---|
+| `exec` (alias: `e`) | Non-interactive execution mode |
+| `--json` / `--experimental-json` | JSON Lines output for machine consumption |
+| `--ephemeral` | Don't persist session rollout files |
+| `--full-auto` | Auto-approve edits (combines approvals + workspace-write sandbox) |
+| `--sandbox <mode>` | `read-only` \| `workspace-write` \| `danger-full-access` |
+| `-o, --output-last-message <path>` | Write final message to file |
+| `--skip-git-repo-check` | Override Git repository requirement |
+| `-m, --model` | Override model (e.g. `gpt-5-codex`) |
+| `--yolo` | Remove all safeguards (alias for `--dangerously-bypass-approvals-and-sandbox`) |
+
+### JSON Output Format (JSONL Stream)
+
+With `--json` enabled, stdout is a JSON Lines stream. Key event types:
+
+```jsonl
+{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"..."}}
+{"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"output_tokens":122}}
+```
+
+Event types: `thread.started`, `turn.started`, `turn.completed`, `turn.failed`, `item.started`, `item.completed`, `error`.
+
+Token usage appears on `turn.completed` events. A single execution may have multiple turns — all must be summed.
+
+### Token Field Mapping
+
+```python
+def _parse_codex_jsonl(stdout: str) -> tuple[dict, NormalizedTokenUsage]:
+    total_input = 0
+    total_output = 0
+    total_cached = 0
+    last_message = ""
+
+    for line in stdout.strip().splitlines():
+        event = json.loads(line)
+        if event.get("type") == "turn.completed":
+            usage = event.get("usage", {})
+            total_input += usage.get("input_tokens", 0)
+            total_output += usage.get("output_tokens", 0)
+            total_cached += usage.get("cached_input_tokens", 0)
+        elif event.get("type") == "item.completed":
+            item = event.get("item", {})
+            if item.get("type") == "agent_message":
+                last_message = item.get("text", "")
+
+    return (
+        {"last_message": last_message},
+        NormalizedTokenUsage(
+            input_tokens=total_input,
+            output_tokens=total_output,
+            cache_read_tokens=total_cached,
+            cache_write_tokens=0,  # Codex does not report cache writes
+        ),
+    )
+```
+
+### Session Resume
+
+```bash
+codex exec resume --last "next task"
+codex exec resume <SESSION_ID>
+```
+
+### Quirks and Limitations
+
+- **No `cache_creation` concept**: `cached_input_tokens` maps to `cache_read_tokens`; `cache_write_tokens` is always 0.
+- **Requires a Git repository** by default. Override with `--skip-git-repo-check`.
+- **Runs in read-only sandbox** by default. `--full-auto` upgrades to `workspace-write`.
+- **Progress on stderr, results on stdout**: stderr gets streaming progress; stdout gets JSON events.
+- **Authentication**: `CODEX_API_KEY` env var (only supported in `codex exec` mode).
+
+---
+
+## Gemini CLI (`gemini` CLI)
+
+### Invocation
+
+```bash
+gemini --output-format json --yolo "PROMPT"
+```
+
+Alternative: `gemini -p "query"` or `echo "text" | gemini`.
+
+### Key CLI Flags
+
+| Flag | Purpose |
+|---|---|
+| `--prompt`, `-p` | Non-interactive (headless) mode |
+| `--output-format` | Output format: `text` (default) or `json` |
+| `--model`, `-m` | Select model (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`) |
+| `--yolo`, `-y` | Auto-approve all actions |
+| `--approval-mode` | Set approval behavior (e.g. `auto_edit`) |
+| `--debug`, `-d` | Enable debug mode |
+| `--all-files`, `-a` | Include all files in context |
+| `--include-directories` | Add specific directories to context |
+
+### JSON Output Format (Single Object)
+
+```json
+{
+    "response": "string",
+    "stats": {
+        "models": {
+            "gemini-2.5-pro": {
+                "api": {
+                    "totalRequests": 5,
+                    "totalErrors": 0,
+                    "totalLatencyMs": 12345
+                },
+                "tokens": {
+                    "prompt": 24939,
+                    "candidates": 20,
+                    "total": 25113,
+                    "cached": 21263,
+                    "thoughts": 154,
+                    "tool": 0
+                }
+            }
+        },
+        "tools": {
+            "totalCalls": 3,
+            "totalSuccess": 3,
+            "totalFail": 0,
+            "totalDurationMs": 5000,
+            "totalDecisions": {
+                "accept": 3,
+                "reject": 0,
+                "modify": 0,
+                "auto_accept": 3
+            }
+        },
+        "files": {
+            "totalLinesAdded": 10,
+            "totalLinesRemoved": 2
+        }
+    }
+}
+```
+
+### Token Fields
+
+| Field | Meaning |
+|---|---|
+| `prompt` | Input tokens sent |
+| `candidates` | Response tokens generated |
+| `total` | Combined count (**includes** `thoughts`) |
+| `cached` | Tokens reused from cache |
+| `thoughts` | Internal reasoning/chain-of-thought tokens |
+| `tool` | Tool-related tokens |
+
+### Token Field Mapping
+
+Output may contain multiple models — sum across all of them:
+
+```python
+def _normalize_gemini(data: dict) -> NormalizedTokenUsage:
+    models = data.get("stats", {}).get("models", {})
+    total_prompt = 0
+    total_candidates = 0
+    total_cached = 0
+
+    for model_name, model_data in models.items():
+        tokens = model_data.get("tokens", {})
+        total_prompt += tokens.get("prompt", 0)
+        total_candidates += tokens.get("candidates", 0)
+        total_cached += tokens.get("cached", 0)
+
+    return NormalizedTokenUsage(
+        input_tokens=total_prompt,
+        output_tokens=total_candidates,
+        cache_read_tokens=total_cached,
+        cache_write_tokens=0,  # Gemini does not report cache writes
+    )
+```
+
+### Session Resume
+
+No documented session resume mechanism.
+
+### Quirks and Limitations
+
+- **`prompt` / `candidates`** instead of `input` / `output` — different naming from the other two agents.
+- **`total` includes `thoughts`**: Gemini's own `total` field includes internal reasoning tokens. The harness computes its own total as `prompt + candidates` for consistency.
+- **JSON output can be unreliable**: GitHub issue #11184 reports `--output-format json` sometimes produces invalid JSON. The adapter should catch `json.JSONDecodeError` and fall back.
+- **No cost reporting**: Gemini CLI does not report cost in its output. Maps to `null` in results.
+- **Free tier limits**: 60 requests/min, 1,000 requests/day, 1M token context window on Gemini 2.5 Pro.
+
+---
+
+## Cross-Agent Comparison
+
+| Capability | Claude Code | Codex CLI | Gemini CLI |
+|---|---|---|---|
+| Output format | Single JSON object | JSONL stream | Single JSON object |
+| Token naming | `input_tokens` / `output_tokens` | `input_tokens` / `output_tokens` | `prompt` / `candidates` |
+| Cache read | `cache_read_input_tokens` | `cached_input_tokens` | `cached` |
+| Cache write | `cache_creation_input_tokens` | Not reported | Not reported |
+| Cost reporting | `total_cost_usd` | Not reported | Not reported |
+| Session resume | `--resume <id>` | `resume <id>` | Not available |
+| Auto-approve | `--dangerously-skip-permissions` | `--full-auto` | `--yolo` |
+| Headless mode | `-p` | `exec` | `-p` |

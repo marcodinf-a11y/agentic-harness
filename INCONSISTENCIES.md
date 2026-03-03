@@ -18,21 +18,9 @@ Cross-document review of all seven specification files, with focus on greenfield
 
 ---
 
-### 3. Codex will fail in bare sandboxes
+### ~~3. Codex will fail in bare sandboxes~~ — RESOLVED
 
-**Documents:** AGENTS.md, ARCHITECTURE.md
-
-The documented Codex invocation is:
-
-```bash
-codex exec --json --full-auto "PROMPT"
-```
-
-This does not include `--skip-git-repo-check`. AGENTS.md line 181 states Codex "Requires a Git repository by default." The sandbox is a temporary directory that only has `.git` if the task author includes `git init` in `setup_commands`. If they don't, Codex fails.
-
-Additionally, the JSONL parser (`_parse_codex_jsonl`) only handles `turn.completed` and `item.completed` events. The `error` and `turn.failed` event types listed at AGENTS.md line 135 are not parsed. A git-related failure would produce an unhandled event type, resulting in zero tokens and an empty last_message with no error context.
-
-**Fix:** The Codex adapter should always pass `--skip-git-repo-check`, or check for `.git` in the sandbox and inject the flag conditionally. The JSONL parser must handle `error` and `turn.failed` events.
+**Status:** Resolved. The Codex invocation now always includes `--skip-git-repo-check` since sandboxes may not contain a `.git` directory. The `_parse_codex_jsonl` parser now handles `turn.failed` and `error` event types, collecting error messages into an `errors` list on the result dict. The Codex quirks section documents why the flag is always passed.
 
 ---
 
@@ -286,7 +274,7 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 |----|-------|----------|----------|
 | 1  | ~~`total_tokens` always 0~~ | ~~Critical~~ | ~~Design bug~~ — **RESOLVED** |
 | 2  | ~~No brownfield sandbox support~~ | ~~Critical~~ | ~~Greenfield/brownfield gap~~ — **RESOLVED** |
-| 3  | Codex fails without git | Critical | Adapter edge case |
+| 3  | ~~Codex fails without git~~ | ~~Critical~~ | ~~Adapter edge case~~ — **RESOLVED** |
 | 4  | Cache token semantics ambiguous | High | Token normalization |
 | 5  | "Not a benchmark tool" contradiction | High | Framing |
 | 6  | Context window monitoring is phantom | High | Phantom feature |

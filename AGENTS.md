@@ -104,7 +104,7 @@ claude -p "next query" --resume "$session_id"
 ### Invocation
 
 ```bash
-codex exec --json --full-auto "PROMPT"
+codex exec --json --full-auto --skip-git-repo-check "PROMPT"
 ```
 
 ### Key CLI Flags
@@ -144,21 +144,31 @@ def _parse_codex_jsonl(stdout: str) -> tuple[dict, NormalizedTokenUsage]:
     total_output = 0
     total_cached = 0
     last_message = ""
+    errors: list[str] = []
 
     for line in stdout.strip().splitlines():
         event = json.loads(line)
-        if event.get("type") == "turn.completed":
+        event_type = event.get("type")
+        if event_type == "turn.completed":
             usage = event.get("usage", {})
             total_input += usage.get("input_tokens", 0)
             total_output += usage.get("output_tokens", 0)
             total_cached += usage.get("cached_input_tokens", 0)
-        elif event.get("type") == "item.completed":
+        elif event_type == "item.completed":
             item = event.get("item", {})
             if item.get("type") == "agent_message":
                 last_message = item.get("text", "")
+        elif event_type == "turn.failed":
+            errors.append(event.get("error", "turn failed"))
+        elif event_type == "error":
+            errors.append(event.get("message", "unknown error"))
+
+    result: dict = {"last_message": last_message}
+    if errors:
+        result["errors"] = errors
 
     return (
-        {"last_message": last_message},
+        result,
         NormalizedTokenUsage(
             input_tokens=total_input,
             output_tokens=total_output,
@@ -178,7 +188,7 @@ codex exec resume <SESSION_ID>
 ### Quirks and Limitations
 
 - **No `cache_creation` concept**: `cached_input_tokens` maps to `cache_read_tokens`; `cache_write_tokens` is always 0.
-- **Requires a Git repository** by default. Override with `--skip-git-repo-check`.
+- **Requires a Git repository** by default. The adapter always passes `--skip-git-repo-check` because sandboxes may not contain a `.git` directory.
 - **Runs in read-only sandbox** by default. `--full-auto` upgrades to `workspace-write`.
 - **Progress on stderr, results on stdout**: stderr gets streaming progress; stdout gets JSON events.
 - **Authentication**: `CODEX_API_KEY` env var (only supported in `codex exec` mode).

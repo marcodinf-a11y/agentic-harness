@@ -33,7 +33,7 @@ Each agent reports token usage differently. The harness normalizes into the fiel
 
 | Normalized Field | Claude Code | Codex CLI | Gemini CLI |
 |---|---|---|---|
-| `input_tokens` | `usage.input_tokens` | sum of `usage.input_tokens` across `turn.completed` events | sum of `tokens.prompt` across models |
+| `input_tokens` | `usage.input_tokens` + `usage.cache_read_input_tokens` + `usage.cache_creation_input_tokens` | sum of `usage.input_tokens` across `turn.completed` events | sum of `tokens.prompt` across models |
 | `output_tokens` | `usage.output_tokens` | sum of `usage.output_tokens` across `turn.completed` events | sum of `tokens.candidates` across models |
 | `cache_read_tokens` | `usage.cache_read_input_tokens` | sum of `usage.cached_input_tokens` across `turn.completed` events | sum of `tokens.cached` across models |
 | `cache_write_tokens` | `usage.cache_creation_input_tokens` | 0 (not reported) | 0 (not reported) |
@@ -42,13 +42,15 @@ Each agent reports token usage differently. The harness normalizes into the fiel
 
 ## Cache Semantics
 
-The relationship between `input_tokens` and cache tokens varies by agent and is not fully specified by any provider:
+Providers differ in whether their "input" field includes cached tokens. The harness normalizes `input_tokens` to always mean **total input tokens processed** (inclusive of cache), so cross-agent comparison and budget math are consistent.
 
-- **Claude Code**: `input_tokens` may be exclusive of `cache_read_input_tokens` (it appears as a very small number alongside large cache values).
-- **Codex CLI**: `input_tokens` may be inclusive or exclusive of `cached_input_tokens`.
-- **Gemini CLI**: `prompt` may be inclusive or exclusive of `cached`.
+**Per-provider raw semantics:**
 
-The exact semantics need to be verified per-provider. Budget calculations depend on this interpretation — if `input_tokens` already includes cached tokens, double-counting is possible; if it excludes them, the budget underestimates actual context size. Until verified, the harness treats `input_tokens` and cache tokens as independent fields and does not adjust one based on the other.
+- **Claude / Anthropic**: `input_tokens` is **EXCLUSIVE** of cache. The three fields are mutually exclusive partitions of total input: `input_tokens` (uncached tail) + `cache_read_input_tokens` (read from cache) + `cache_creation_input_tokens` (written to cache) = total input. The adapter sums all three into the normalized `input_tokens`.
+- **Codex / OpenAI**: `input_tokens` is **INCLUSIVE** of cache. `cached_input_tokens` is a subset, not additive. No adjustment needed.
+- **Gemini / Google**: `prompt` is **INCLUSIVE** of cache. `cached` is a subset, not additive. No adjustment needed.
+
+Claude is the odd one out — without the summation fix, its normalized `input_tokens` would be just the uncached tail (e.g., 3 tokens when 23,000+ were actually processed), making budget calculations off by orders of magnitude.
 
 ## Budget Concept
 

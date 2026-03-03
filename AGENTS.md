@@ -76,11 +76,16 @@ Run via `asyncio.create_subprocess_exec` with `cwd` set to the sandbox directory
 ```python
 def _normalize_claude(data: dict) -> NormalizedTokenUsage:
     usage = data.get("usage", {})
+    # Claude's input_tokens is EXCLUSIVE of cache — it reports only the
+    # uncached tail.  Sum all three partitions to get total input tokens.
+    raw_input = usage.get("input_tokens", 0)
+    cache_read = usage.get("cache_read_input_tokens", 0)
+    cache_write = usage.get("cache_creation_input_tokens", 0)
     return NormalizedTokenUsage(
-        input_tokens=usage.get("input_tokens", 0),
+        input_tokens=raw_input + cache_read + cache_write,
         output_tokens=usage.get("output_tokens", 0),
-        cache_read_tokens=usage.get("cache_read_input_tokens", 0),
-        cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+        cache_read_tokens=cache_read,
+        cache_write_tokens=cache_write,
     )
 ```
 

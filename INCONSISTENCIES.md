@@ -26,27 +26,9 @@ Cross-document review of all seven specification files, with focus on greenfield
 
 ## High
 
-### 4. Cache token semantics are ambiguous — budget math may be wrong
+### ~~4. Cache token semantics are ambiguous — budget math may be wrong~~ — RESOLVED
 
-**Documents:** AGENTS.md, ARCHITECTURE.md
-
-ARCHITECTURE.md line 118 states: "`total_tokens` is always `input_tokens + output_tokens`." ARCHITECTURE.md line 120 states: "Cache tokens are tracked but not added to the total."
-
-But the relationship between `input_tokens` and cache tokens is unclear per agent:
-
-**Claude Code:** The JSON example shows `input_tokens: 3` alongside `cache_read_input_tokens: 13829`. If these are separate (additive), total input consumption was 16,832. But the normalization maps `input_tokens` to just 3. The budget would be `3 + 21 = 24 tokens` — absurdly low for a real invocation. Is Claude's `input_tokens` the non-cached portion only, or the full input count?
-
-**Gemini CLI:** `prompt: 24939` and `cached: 21263`. If `cached` is a subset of `prompt`, net new input is 3,676. If they are additive, total input is 46,202. The normalization maps `input_tokens` to `prompt` (24,939) without clarification.
-
-This ambiguity means the budget calculation could be off by an order of magnitude depending on interpretation. The docs must specify whether each agent's "input" field is inclusive or exclusive of cached tokens.
-
-**Fix:** Research the actual semantics of each agent's token fields. Document explicitly:
-
-- Claude: `input_tokens` is [inclusive/exclusive] of `cache_read_input_tokens`
-- Codex: `input_tokens` is [inclusive/exclusive] of `cached_input_tokens`
-- Gemini: `prompt` is [inclusive/exclusive] of `cached`
-
-Update the normalization rules accordingly. If fields are exclusive, the budget formula may need adjustment.
+**Status:** Resolved. Per-provider cache semantics researched and documented in TOKENS.md Cache Semantics section. Claude's `input_tokens` is **exclusive** of cache (partitioned model — three fields sum to total input). Codex and Gemini are **inclusive** (cached tokens are a subset of the input field). The Claude adapter in AGENTS.md now sums `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` into the normalized `input_tokens`, making it consistent with Codex and Gemini. The normalized `input_tokens` always means "total input tokens processed" across all agents. TOKENS.md field mapping table updated to reflect the summation.
 
 ---
 
@@ -275,7 +257,7 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 | 1  | ~~`total_tokens` always 0~~ | ~~Critical~~ | ~~Design bug~~ — **RESOLVED** |
 | 2  | ~~No brownfield sandbox support~~ | ~~Critical~~ | ~~Greenfield/brownfield gap~~ — **RESOLVED** |
 | 3  | ~~Codex fails without git~~ | ~~Critical~~ | ~~Adapter edge case~~ — **RESOLVED** |
-| 4  | Cache token semantics ambiguous | High | Token normalization |
+| 4  | ~~Cache token semantics ambiguous~~ | ~~High~~ | ~~Token normalization~~ — **RESOLVED** |
 | 5  | "Not a benchmark tool" contradiction | High | Framing |
 | 6  | Context window monitoring is phantom | High | Phantom feature |
 | 7  | No turn limit for Codex/Gemini | Medium | Runaway execution |
@@ -298,4 +280,4 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 
 2. **Define error paths** — timeout handling, JSON parse failure, agent startup failure, and runaway execution. The happy path is well-specified; unhappy paths are not.
 
-3. **Resolve cache token semantics** — research whether each agent's input token count is inclusive or exclusive of cached tokens, and update normalization rules accordingly. Budget calculations depend on this.
+3. ~~**Resolve cache token semantics**~~ — **RESOLVED.** Claude is exclusive (partitioned), Codex and Gemini are inclusive (subset). Claude adapter now sums all three partitions. See TOKENS.md Cache Semantics.

@@ -6,27 +6,9 @@ Cross-document review of all seven specification files, with focus on greenfield
 
 ## Critical
 
-### 1. `total_tokens` is always 0 as documented
+### ~~1. `total_tokens` is always 0 as documented~~ — RESOLVED
 
-**Documents:** ARCHITECTURE.md, AGENTS.md
-
-The frozen dataclass defines `total_tokens: int = 0` with a comment "Computed: input + output" (ARCHITECTURE.md line 113). But:
-
-- No `__post_init__` is shown that would compute the value
-- Frozen dataclasses do not allow attribute setting after initialization
-- All three adapter functions (`_normalize_claude`, `_parse_codex_jsonl`, `_normalize_gemini`) construct `NormalizedTokenUsage` without setting `total_tokens`
-- Budget analysis at ARCHITECTURE.md line 151 uses `usage.total_tokens` directly
-
-Every adapter as documented will produce `total_tokens = 0`. Budget utilization will always report 0%.
-
-**Fix:** Add `__post_init__` using `object.__setattr__`:
-
-```python
-def __post_init__(self):
-    object.__setattr__(self, 'total_tokens', self.input_tokens + self.output_tokens)
-```
-
-Update all three adapter code samples to either rely on `__post_init__` or explicitly pass `total_tokens`.
+**Status:** Resolved. TOKENS.md now contains the canonical `NormalizedTokenUsage` definition with `__post_init__` that computes `total_tokens = input_tokens + output_tokens` via `object.__setattr__`. ARCHITECTURE.md no longer duplicates the definition — it defers to TOKENS.md. All three adapter functions in AGENTS.md correctly omit `total_tokens` from their constructors, relying on `__post_init__`.
 
 ---
 
@@ -330,7 +312,7 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 
 | #  | Issue | Severity | Category |
 |----|-------|----------|----------|
-| 1  | `total_tokens` always 0 | Critical | Design bug |
+| 1  | ~~`total_tokens` always 0~~ | ~~Critical~~ | ~~Design bug~~ — **RESOLVED** |
 | 2  | No brownfield sandbox support | Critical | Greenfield/brownfield gap |
 | 3  | Codex fails without git | Critical | Adapter edge case |
 | 4  | Cache token semantics ambiguous | High | Token normalization |

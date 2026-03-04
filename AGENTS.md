@@ -27,6 +27,7 @@ Run via `asyncio.create_subprocess_exec` with `cwd` set to the sandbox directory
 | `--max-turns <n>` | Limit agentic iterations |
 | `--continue` / `-c` | Continue most recent conversation |
 | `--resume <session_id>` | Resume a specific session |
+| `--model <model>` | Select model (e.g. `claude-opus-4-6`, `opus`) |
 | `--append-system-prompt` | Add custom instructions |
 
 ### JSON Output Format
@@ -101,6 +102,7 @@ claude -p "next query" --resume "$session_id"
 - **Two naming conventions**: The top-level `usage` block uses **snake_case** (`input_tokens`), while `modelUsage` uses **camelCase** (`inputTokens`). Parse from `usage` — it is the aggregate across all models.
 - **Cannot run inside another Claude Code session**: When the `CLAUDECODE` env var is set, `claude -p` fails. The adapter must unset `CLAUDECODE` or pass a clean `env` dict to the subprocess.
 - **Cost available**: `total_cost_usd` at top level, `costUSD` per model in `modelUsage`.
+- **Effort control**: Set via `CLAUDE_CODE_EFFORT_LEVEL` env var on the subprocess (`low`, `medium`, `high`). No CLI flag. Supported on Opus 4.6 and Sonnet 4.6 only. The adapter sets this env var when the task or CLI specifies an `effort` value.
 
 ---
 
@@ -197,6 +199,7 @@ codex exec resume <SESSION_ID>
 - **Runs in read-only sandbox** by default. `--full-auto` upgrades to `workspace-write`.
 - **Progress on stderr, results on stdout**: stderr gets streaming progress; stdout gets JSON events.
 - **Authentication**: `CODEX_API_KEY` env var (only supported in `codex exec` mode).
+- **Effort control**: Set via `--config 'model_reasoning_effort="<level>"'` (`minimal`, `low`, `medium`, `high`, `xhigh`). Requires Responses API wire protocol. Works with o3, o4-mini, gpt-5. The harness maps normalized `low`/`medium`/`high` values directly; Codex-specific `minimal` and `xhigh` are not available via the normalized `effort` field.
 
 ---
 
@@ -313,10 +316,11 @@ No documented session resume mechanism.
 - **JSON output can be unreliable**: GitHub issue #11184 reports `--output-format json` sometimes produces invalid JSON. The adapter should catch `json.JSONDecodeError` and fall back.
 - **No cost reporting**: Gemini CLI does not report cost in its output. Maps to `null` in results.
 - **Free tier limits**: 60 requests/min, 1,000 requests/day, 1M token context window on Gemini 2.5 Pro.
+- **Effort control**: No CLI flag or env var. Requires a custom model alias in `settings.json` with a `thinkingConfig` block. Gemini 2.5 uses integer `thinkingBudget`; Gemini 3 uses `thinkingLevel` enum (`minimal`/`low`/`medium`/`high`). The adapter must manage settings dynamically — this is the most complex effort integration of the three agents.
 
 ---
 
-## Cross-Agent Comparison
+## Cross-Agent Reference
 
 | Capability | Claude Code | Codex CLI | Gemini CLI |
 |---|---|---|---|

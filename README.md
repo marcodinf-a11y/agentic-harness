@@ -2,7 +2,7 @@
 
 Development workflow tool for controlling AI coding agents during long-running software development sessions. Dispatches tasks, isolates execution, captures output, evaluates results. Token tracking detects context rot risk.
 
-**MVP**: single-agent workflow. **Future**: multi-agent (parallelism and comparison).
+**MVP**: single-agent workflow. **Future**: multi-agent composition and parallel dispatch.
 
 ## Supported Agents
 
@@ -14,7 +14,7 @@ Development workflow tool for controlling AI coding agents during long-running s
 
 | Document | Content |
 |---|---|
-| [BRIEF.md](BRIEF.md) | Project brief — what, who, why, four pillars, MVP scope, multi-agent future |
+| [BRIEF.md](BRIEF.md) | Project brief — what, who, why, four pillars, MVP scope, multi-agent composition |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System overview, subsystems, agent adapter protocol, execution flow, CLI design |
 | [AGENTS.md](AGENTS.md) | Per-agent integration reference — invocation syntax, JSON output formats, token field mappings, quirks |
 | [TASKS.md](TASKS.md) | Task definition spec — JSON (MVP) + YAML (future), schema, examples, validation patterns |
@@ -28,14 +28,11 @@ Development workflow tool for controlling AI coding agents during long-running s
 # Run a task against Claude Code
 harness run -t tasks/example_fizzbuzz.json -a claude
 
-# Run against all available agents
-harness run -t tasks/example_fizzbuzz.json
-
 # Run all tasks in a directory
 harness run -t tasks/ -a claude
 
 # Dry run
-harness run -t tasks/example_fizzbuzz.json --dry-run
+harness run -t tasks/example_fizzbuzz.json -a claude --dry-run
 ```
 
 ## Token Budget

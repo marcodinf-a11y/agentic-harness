@@ -51,12 +51,11 @@ The first version supports dispatching one task to one agent at a time. The flow
 
 ### Future: Multi-Agent & YAML Support
 
-Multi-agent support is planned for two use cases:
+Multi-agent support is planned for **workflow composition** — using different agents and models for different roles. For example: plan with Claude/Opus at high effort, implement with Gemini/Flash at medium effort, review with Claude/Sonnet. Each task targets a single agent.
 
-- **Comparison** — run the same task against multiple agents, compare results
 - **Parallelism** — dispatch different tasks to different agents concurrently
 
-The architecture supports this from day one (agent adapter protocol, normalized token model) but the MVP does not implement parallel dispatch.
+The architecture supports this from day one (agent adapter protocol, normalized token model, per-task agent/model/effort fields) but the MVP does not implement parallel dispatch.
 
 YAML task loading is a planned future addition. YAML's multiline block scalars, comments, and token efficiency make it attractive for human-authored task files. The `TaskDefinition` dataclass is format-agnostic — adding YAML support requires only a loader that detects file extension.
 

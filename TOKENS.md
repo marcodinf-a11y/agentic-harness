@@ -42,7 +42,7 @@ Each agent reports token usage differently. The harness normalizes into the fiel
 
 ## Cache Semantics
 
-Providers differ in whether their "input" field includes cached tokens. The harness normalizes `input_tokens` to always mean **total input tokens processed** (inclusive of cache), so cross-agent comparison and budget math are consistent.
+Providers differ in whether their "input" field includes cached tokens. The harness normalizes `input_tokens` to always mean **total input tokens processed** (inclusive of cache), so budget math is consistent regardless of which agent is used.
 
 **Per-provider raw semantics:**
 

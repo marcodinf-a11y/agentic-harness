@@ -141,11 +141,13 @@ Commands:
 ```
 Options:
   -t, --task PATH       Task JSON file or directory [required]
-  -a, --agent TEXT      Agent: claude, codex, gemini, or "all" [default: all]
+  -a, --agent TEXT      Agent: claude, codex, or gemini [default for tasks without agent field]
+  -m, --model TEXT      Model: e.g. opus, sonnet, flash, pro [default for tasks without model field]
+  --effort TEXT         Reasoning effort: low, medium, high [default for tasks without effort field]
   -o, --output PATH     Output directory [default: ./results]
   --budget INTEGER      Token budget override [default: 70000]
   --timeout INTEGER     Timeout override in seconds
-  --parallel            Run agents in parallel (future)
+  --parallel            Dispatch tasks concurrently (future)
   --dry-run             Show what would execute without running
 ```
 
@@ -181,10 +183,11 @@ Go or Rust would offer single-binary distribution and avoid the Python runtime d
 
 ## Future: Multi-Agent
 
-The architecture supports multi-agent from day one:
+The architecture supports multi-agent workflow composition from day one:
 
 - The `AgentAdapter` protocol is agent-agnostic
-- `NormalizedTokenUsage` allows cross-agent comparison
-- The `--agent all` flag and `--parallel` flag are designed for this
+- `NormalizedTokenUsage` provides consistent token tracking regardless of agent
+- Per-task `agent`, `model`, and `effort` fields enable composition pipelines
+- The `--parallel` flag enables concurrent dispatch of different tasks
 
-MVP implements single-agent sequential execution only. Multi-agent parallel dispatch is a documented future extension.
+MVP implements single-agent sequential execution only. Multi-agent parallel dispatch is a future extension.

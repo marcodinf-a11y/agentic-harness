@@ -20,6 +20,9 @@ class TaskDefinition:
     id: str
     name: str
     prompt: str
+    agent: str | None = None       # "claude", "codex", "gemini" — optional
+    model: str | None = None       # Agent-specific model identifier — optional
+    effort: str | None = None      # "low", "medium", "high" — optional
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     setup_commands: list[str] = field(default_factory=list)
     validation_commands: list[str] = field(default_factory=list)
@@ -37,6 +40,9 @@ class TaskDefinition:
 | `id` | `str` | yes | — | Unique task identifier |
 | `name` | `str` | yes | — | Human-readable task name |
 | `prompt` | `str` | yes | — | Prompt sent to the agent |
+| `agent` | `str \| None` | no | `None` | Agent: `claude`, `codex`, `gemini`. CLI `--agent` provides default. |
+| `model` | `str \| None` | no | `None` | Model identifier passed to agent CLI (e.g. `opus`, `flash`). CLI `--model` provides default. |
+| `effort` | `str \| None` | no | `None` | Reasoning effort: `low`, `medium`, `high`. CLI `--effort` provides default. |
 | `workspace` | `WorkspaceConfig` | no | `{type: "tempdir"}` | Sandbox creation strategy (see [Workspace Types](#workspace-types)) |
 | `setup_commands` | `list[str]` | no | `[]` | Commands to run before the agent starts |
 | `validation_commands` | `list[str]` | no | `[]` | Commands to run after the agent finishes |
@@ -45,6 +51,19 @@ class TaskDefinition:
 | `timeout_seconds` | `int` | no | `300` | Wall-clock timeout in seconds |
 | `tags` | `list[str]` | no | `[]` | For filtering and categorization |
 | `metadata` | `dict[str, Any]` | no | `{}` | Arbitrary metadata |
+
+### Agent, Model, and Effort Resolution
+
+CLI flags (`--agent`, `--model`, `--effort`) provide **defaults** for tasks that do not specify their own values. Task-level fields take precedence over CLI flags, enabling composition pipelines where different tasks target different agents/models/effort levels.
+
+| Task field | CLI flag | Result |
+|---|---|---|
+| set | set | Task value wins |
+| set | absent | Task value |
+| absent | set | CLI value |
+| absent | absent | Agent default (model/effort) or error (agent) |
+
+An agent must be resolvable for every task — from the task's `agent` field or the CLI `--agent` flag. If neither provides an agent, the harness errors. Model and effort are always optional; agents use their own defaults when not specified.
 
 ### WorkspaceConfig Fields
 
@@ -128,6 +147,9 @@ Best for: non-git projects, or when you need full isolation (e.g. destructive se
         "id":                  { "type": "string", "description": "Unique task identifier" },
         "name":                { "type": "string", "description": "Human-readable task name" },
         "prompt":              { "type": "string", "description": "Prompt sent to the agent" },
+        "agent":               { "type": "string", "enum": ["claude", "codex", "gemini"], "description": "Agent for this task (CLI --agent provides default)" },
+        "model":               { "type": "string", "description": "Model identifier passed to agent CLI (CLI --model provides default)" },
+        "effort":              { "type": "string", "enum": ["low", "medium", "high"], "description": "Reasoning effort level (CLI --effort provides default)" },
         "workspace": {
             "type": "object",
             "description": "Sandbox creation strategy",
@@ -271,6 +293,42 @@ Best for: non-git projects, or when you need full isolation (e.g. destructive se
 }
 ```
 
+**Workflow composition** — tasks targeting different agents and models:
+
+```json
+{
+    "id": "review-auth-001",
+    "name": "Review auth refactoring",
+    "agent": "claude",
+    "model": "opus",
+    "effort": "high",
+    "prompt": "Review the changes in src/auth.py for security issues, edge cases,\nand API contract violations. Check that all tests in tests/test_auth.py\ncover the new JWT implementation. Report findings as inline comments.",
+    "workspace": {
+        "type": "worktree",
+        "source": "/home/dev/projects/myapp"
+    },
+    "validation_commands": [
+        "pytest tests/test_auth.py -v"
+    ],
+    "token_budget": 50000,
+    "timeout_seconds": 180,
+    "tags": ["review", "auth", "security"]
+}
+```
+
+In a composition pipeline, a directory of tasks can target different agents:
+
+```
+tasks/pipeline/
+    01_plan.json         → agent: claude, model: opus, effort: high
+    02_implement.json    → agent: gemini, model: flash, effort: medium
+    03_review.json       → agent: claude, model: sonnet
+```
+
+Run with: `harness run -t tasks/pipeline/`
+
+Each task dispatches to its specified agent. Tasks without an `agent` field require `--agent` on the CLI.
+
 ---
 
 ## YAML Format [Planned]
@@ -302,6 +360,9 @@ The YAML schema will map directly to the same `TaskDefinition` dataclass:
 id: string                        # Unique task identifier
 name: string                      # Human-readable task name
 prompt: string                    # Prompt sent to the agent (multiline with |)
+agent: string                     # Optional: claude, codex, gemini
+model: string                     # Optional: agent-specific model identifier
+effort: string                    # Optional: low, medium, high
 workspace:                        # Sandbox creation strategy
   type: string                    # "tempdir" (default) | "worktree" | "copy"
   source: string                  # Path to existing repo/directory

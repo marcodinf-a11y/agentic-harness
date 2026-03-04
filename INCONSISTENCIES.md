@@ -32,23 +32,9 @@ Cross-document review of all seven specification files, with focus on greenfield
 
 ---
 
-### 5. "Not a benchmarking tool" contradicts its own design
+### ~~5. "Not a benchmarking tool" contradicts its own design~~ — RESOLVED
 
-**Documents:** BRIEF.md, ARCHITECTURE.md, README.md
-
-BRIEF.md line 8: "This is not a benchmarking or comparison tool."
-
-But:
-
-- BRIEF.md line 59: "Comparison — run the same task against multiple agents, compare results"
-- ARCHITECTURE.md line 234: "`NormalizedTokenUsage` allows cross-agent comparison"
-- ARCHITECTURE.md line 191: CLI default is `--agent all`, running against all agents
-- README.md line 32: Quick start example without `-a` flag implies all-agent default
-- The entire `NormalizedTokenUsage` model and the report format with `results[]` arrays are designed for cross-agent comparison
-
-The tool's architecture, defaults, and planned features are those of a comparison tool. The disclaimer contradicts the design.
-
-**Fix:** Soften the language. Replace "This is not a benchmarking or comparison tool" with something like: "This is a development workflow tool, not a synthetic benchmarking suite. Cross-agent comparison is a secondary capability, not the primary purpose."
+**Status:** Resolved. Comparison features removed from the design entirely. The "Comparison" use case in BRIEF.md replaced with "Composition" — using different agents/models/roles in a workflow pipeline (e.g., plan with Claude/Opus, implement with Gemini/Flash, review with Claude/Sonnet). `--agent all` default removed; `--agent` now provides a default for tasks without an `agent` field. CLI flags `--model` and `--effort` added. Per-task `agent`, `model`, and `effort` fields added to `TaskDefinition` (all optional). Task-level values take precedence over CLI flags, enabling composition pipelines. `NormalizedTokenUsage` reframed as consistent budget tracking, not cross-agent comparison. Report arrays retained for multi-task directory runs (one entry per task execution, not per agent). AGENTS.md "Cross-Agent Comparison" heading renamed to "Cross-Agent Reference." Per-agent effort control mechanisms documented (Claude: env var, Codex: config flag, Gemini: settings.json).
 
 ---
 
@@ -258,7 +244,7 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 | 2  | ~~No brownfield sandbox support~~ | ~~Critical~~ | ~~Greenfield/brownfield gap~~ — **RESOLVED** |
 | 3  | ~~Codex fails without git~~ | ~~Critical~~ | ~~Adapter edge case~~ — **RESOLVED** |
 | 4  | ~~Cache token semantics ambiguous~~ | ~~High~~ | ~~Token normalization~~ — **RESOLVED** |
-| 5  | "Not a benchmark tool" contradiction | High | Framing |
+| 5  | ~~"Not a benchmark tool" contradiction~~ | ~~High~~ | ~~Framing~~ — **RESOLVED** |
 | 6  | Context window monitoring is phantom | High | Phantom feature |
 | 7  | No turn limit for Codex/Gemini | Medium | Runaway execution |
 | 8  | Timeout enforcement unspecified | Medium | Error handling |

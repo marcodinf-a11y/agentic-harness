@@ -4,7 +4,7 @@ Every `harness run` invocation produces a single JSON report capturing agent res
 
 ## Report JSON Schema
 
-Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per invocation — the `results[]` and `evaluations[]` arrays hold one entry per agent. When running against multiple agents, a single report file contains all agent results. The timestamp in the filename differentiates runs.
+Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per invocation — the `results[]` and `evaluations[]` arrays hold one entry per task execution. When running a directory of tasks, a single report file contains all results. The timestamp in the filename differentiates runs.
 
 ```json
 {
@@ -17,6 +17,8 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
     "results": [
         {
             "agent_name": "claude-code",
+            "model": "sonnet",
+            "effort": null,
             "task_id": "fizzbuzz-001",
             "exit_code": 0,
             "normalized_tokens": {
@@ -66,7 +68,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
 
 | Field | Description |
 |---|---|
-| `normalized_tokens` | Unified token usage, comparable across agents. |
+| `model` | Model used for this execution (e.g. `sonnet`, `flash`), or `null` if not specified. |
+| `effort` | Reasoning effort level used (`low`, `medium`, `high`), or `null` if not specified. |
+| `normalized_tokens` | Unified token usage, consistent regardless of agent. |
 | `budget_status` | Quick health check: `within`, `warning`, or `exceeded`. |
 | `budget_analysis` | Detailed breakdown with utilization percentage, remaining budget, and cache efficiency. See [TOKENS.md](TOKENS.md) for full budget analysis details. |
 | `cost_usd` | Dollar cost (available from Claude Code; `null` for other agents). |

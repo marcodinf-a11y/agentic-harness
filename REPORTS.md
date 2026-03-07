@@ -21,6 +21,7 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
             "effort": null,
             "task_id": "fizzbuzz-001",
             "exit_code": 0,
+            "termination_reason": "completed",
             "normalized_tokens": {
                 "input_tokens": 12500,
                 "output_tokens": 850,
@@ -76,6 +77,7 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
 | `cost_usd` | Dollar cost (available from Claude Code; `null` for other agents). |
 | `diff` | Git diff of what the agent changed in the sandbox. |
 | `artifacts` | Map of filename to content for files the agent created or modified. |
+| `termination_reason` | Why the run ended: `completed` (normal), `timed_out` (wall-clock limit), `context_pressure` (zone kill), or `error` (adapter failure). |
 | `validation_passed` / `score` | Evaluation results from running validation commands. |
 
 ## Evaluation Scoring

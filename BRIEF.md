@@ -2,7 +2,9 @@
 
 ## What It Is
 
-The agentic harness is a **development workflow tool** for controlling AI coding agents during long-running software development sessions. It sits above agents as a controller layer — dispatching tasks, isolating execution, capturing output, and evaluating results.
+The agentic harness is a **context-pressure-aware orchestrator** for AI coding agents. It monitors how agents consume their context windows during real development work, intervenes when quality is at risk, and ensures work is persisted before degradation sets in.
+
+It sits above agents as a controller layer — dispatching tasks, isolating execution, monitoring context pressure in real-time, and managing graceful wrap-up when pressure thresholds are crossed.
 
 This is not a benchmarking or comparison tool. It is used during actual development work.
 
@@ -14,27 +16,41 @@ Developers who use AI coding agents (Claude Code, Codex CLI, Gemini CLI) for rea
 
 AI coding agents are powerful but unmanaged. During a long session:
 
-- **Context rot** — as the conversation grows, the agent's reasoning degrades. Token consumption is the leading indicator.
+- **Context rot** — as the conversation grows, the agent's reasoning degrades. Research shows degradation is continuous and accelerating — it does not cliff at some safe threshold, and newer models with larger context windows exhibit the same patterns ([Chroma Research: Context Rot](https://research.trychroma.com/context-rot)). Token consumption relative to the model's context window is the leading indicator.
+- **No pressure monitoring** — agents have no built-in mechanism to recognize they are degrading. By the time quality drops are visible to the user, significant context window has been consumed with diminishing returns.
 - **No isolation** — agents operate directly in the working tree, making it hard to evaluate or roll back.
 - **No structured evaluation** — success is eyeballed, not measured.
 - **No cost visibility** — token usage and spend are buried in agent-specific formats.
 
-The harness solves this by giving you a controller layer. You break work into discrete tasks, dispatch each to an agent in a sandbox, monitor token health, and evaluate what came back.
+The harness solves this by treating **context pressure** as the primary operational metric. You break work into discrete tasks sized to fit within safe context bounds, dispatch each to an agent in a sandbox, monitor context pressure in real-time via token streams, and intervene when pressure crosses configurable thresholds — ensuring work is committed and progress is logged before quality degrades.
 
-## The Four Pillars
+## The Five Pillars
 
 | Pillar | What It Does |
 |---|---|
 | **Task Dispatch** | Feed a structured task definition (prompt, seed files, setup commands) to an agent |
 | **Execution Isolation** | Run the agent in its own sandbox (temp directory, worktree) so changes are contained |
+| **Context Pressure Monitoring** | Track token consumption against the model's context window in real-time; classify into green/yellow/red zones; trigger wrap-up or termination when thresholds are crossed |
 | **Output Capture** | Collect everything — artifacts, diffs, exit codes, raw JSON, token usage |
 | **Evaluation** | Run validation commands, normalize token usage, score results, generate reports |
 
-## Token Budget as Health Metric
+## Context Pressure as Core Metric
 
-Token tracking is central. The default budget is **70,000 tokens** (input + output). This is not a hard limit — it's a health metric that signals context rot risk. Thinking/reasoning tokens are excluded from the budget. Cache tokens are tracked but not counted toward the total.
+Context pressure — the ratio of consumed tokens to the model's context window — is the harness's primary operational metric. It drives all intervention decisions.
 
-For budget thresholds, status tiers, and the full token normalization model, see [TOKENS.md](TOKENS.md).
+The harness monitors token consumption in real-time (via agent NDJSON/JSONL streams where available) and classifies pressure into configurable zones:
+
+| Zone | Default | Harness Action |
+|---|---|---|
+| **Green** | 0–60% of context window | Continue execution |
+| **Yellow** | 60–80% of context window | Graceful stop: wait for current turn, kill subprocess, harness commits and logs |
+| **Red** | >80% of context window | Immediate kill: harness wraps up with partial data |
+
+Zone thresholds are configurable globally and per-model — when models have large context windows but quality degrades early, shrink the effective ceiling. See [TOKENS.md](TOKENS.md) for data structures and [SESSIONS.md](SESSIONS.md) for the full monitoring protocol.
+
+### Token Budget (Complementary)
+
+The token budget (default 70,000 tokens) is a complementary cost/resource constraint, separate from context pressure. Context pressure tracks quality risk; the token budget tracks spend. Both are monitored. See [TOKENS.md](TOKENS.md).
 
 ## Scope
 

@@ -48,7 +48,7 @@ class TaskDefinition:
 | `validation_commands` | `list[str]` | no | `[]` | Commands to run after the agent finishes |
 | `files` | `dict[str, str]` | no | `{}` | Filename to content mapping to seed in sandbox |
 | `token_budget` | `int` | no | `70000` | Token budget for the agent run |
-| `timeout_seconds` | `int` | no | `300` | Wall-clock timeout in seconds |
+| `timeout_seconds` | `int` | no | `300` | Wall-clock timeout in seconds. On expiry, the harness applies the [Subprocess Termination Procedure](ARCHITECTURE.md#subprocess-termination-procedure) (immediate mode): `SIGTERM`/`SIGINT`, 5-second grace period, then `SIGKILL`. All complete NDJSON/JSONL lines are preserved as partial output. Report sets `termination_reason=timed_out`. |
 | `tags` | `list[str]` | no | `[]` | For filtering and categorization |
 | `metadata` | `dict[str, Any]` | no | `{}` | Arbitrary metadata |
 
@@ -164,7 +164,7 @@ Best for: non-git projects, or when you need full isolation (e.g. destructive se
         "validation_commands": { "type": "array", "items": { "type": "string" }, "default": [] },
         "files":               { "type": "object", "additionalProperties": { "type": "string" }, "default": {} },
         "token_budget":        { "type": "integer", "default": 70000 },
-        "timeout_seconds":     { "type": "integer", "default": 300 },
+        "timeout_seconds":     { "type": "integer", "default": 300, "description": "Wall-clock timeout in seconds. On expiry: SIGTERM/SIGINT → 5s grace → SIGKILL. Partial NDJSON/JSONL output preserved. Sets termination_reason=timed_out." },
         "tags":                { "type": "array", "items": { "type": "string" }, "default": [] },
         "metadata":            { "type": "object", "default": {} }
     },

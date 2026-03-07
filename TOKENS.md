@@ -52,6 +52,73 @@ Providers differ in whether their "input" field includes cached tokens. The harn
 
 Claude is the odd one out — without the summation fix, its normalized `input_tokens` would be just the uncached tail (e.g., 3 tokens when 23,000+ were actually processed), making budget calculations off by orders of magnitude.
 
+## Context Pressure Model
+
+Context pressure is the harness's primary operational metric — see [SESSIONS.md](SESSIONS.md) for the full monitoring protocol and zone actions.
+
+### ZoneConfig
+
+```python
+@dataclass
+class ZoneConfig:
+    """Configurable context pressure zone boundaries."""
+    green_max_pct: float = 60.0   # 0 to green_max = green
+    yellow_max_pct: float = 80.0  # green_max to yellow_max = yellow
+                                   # above yellow_max = red
+
+    def zone_for(self, utilization_pct: float) -> str:
+        if utilization_pct <= self.green_max_pct:
+            return "green"
+        elif utilization_pct <= self.yellow_max_pct:
+            return "yellow"
+        else:
+            return "red"
+```
+
+Per-model overrides are loaded from config and merged with global defaults. See [SESSIONS.md — Configurable Thresholds](SESSIONS.md#configurable-thresholds) for YAML config format.
+
+### ContextPressure
+
+```python
+@dataclass(frozen=True)
+class ContextPressure:
+    """Context pressure measurement for a single execution."""
+    model_context_window: int       # From config lookup or agent-reported metadata
+    estimated_tokens_used: int      # Cumulative tokens from stream monitoring
+    utilization_pct: float          # estimated_tokens_used / model_context_window * 100
+    zone: str                       # "green" | "yellow" | "red"
+    measurement: str                # "realtime" | "post_completion" | "unmonitored"
+```
+
+- `measurement = "realtime"`: Tokens tracked mid-run from stream (Claude, Codex).
+- `measurement = "post_completion"`: Tokens only available after agent exits (Gemini, Claude with extended thinking).
+- `measurement = "unmonitored"`: Model context window unknown — pressure could not be computed.
+
+### Model Context Window Lookup
+
+The denominator for context pressure requires knowing the model's context window size. Sources, in priority order:
+
+1. **Agent-reported metadata** — Claude Code reports `contextWindow` in `modelUsage`. Used when available.
+2. **Config file** — operator-maintained mapping of model names to context window sizes. Required for Codex and Gemini, which do not report context window in their output.
+3. **Unknown** — if neither source provides a window size, `measurement` is set to `"unmonitored"` and no zone actions are triggered.
+
+```yaml
+# Example config — model metadata
+models:
+  # Context window sizes (tokens)
+  # Maintain this as new models ship
+  "claude-opus-4-6":
+    context_window: 200000
+  "o3":
+    context_window: 200000
+  "gemini-2.5-pro":
+    context_window: 1000000
+```
+
+**Note:** Model names and context windows change frequently. The config file should be treated as operator-maintained data, not hardcoded constants. When Claude Code reports `contextWindow` in its output, that value takes precedence over config.
+
+---
+
 ## Budget Concept
 
 Token tracking is central. The default budget is 70,000 tokens (`input_tokens + output_tokens`). This is not a hard limit — it is a health metric. It represents the point where context rot risk becomes significant for typical coding tasks.

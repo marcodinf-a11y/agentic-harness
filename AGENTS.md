@@ -72,6 +72,25 @@ Run via `asyncio.create_subprocess_exec` with `cwd` set to the sandbox directory
 }
 ```
 
+### Stream Output Format (for Context Pressure Monitoring)
+
+With `--output-format stream-json`, Claude emits newline-delimited JSON (NDJSON). Key event types for mid-run monitoring:
+
+```jsonl
+{"type":"system","subtype":"init","session_id":"...","tools":[...]}
+{"type":"assistant","message":{"id":"msg_...","usage":{"input_tokens":12500,"output_tokens":0}},"subtype":"message_start"}
+{"type":"assistant","message":{"usage":{"input_tokens":12500,"output_tokens":347}},"subtype":"message_delta"}
+{"type":"result","subtype":"success","session_id":"...","result":"...","usage":{...},"modelUsage":{...}}
+```
+
+- `message_start`: carries initial `input_tokens` for this API call
+- `message_delta`: carries cumulative `output_tokens` within the current message
+- `result`: final event with full aggregated usage (same schema as `--output-format json`)
+
+The harness reads this stream line by line, updating cumulative token counts and computing context pressure after each `message_delta` event. The `contextWindow` field from `modelUsage` in the final `result` event provides the denominator — on first run, the harness may not know the context window until this event arrives; for known models, the model metadata lookup provides it at invocation time.
+
+**Caveat:** When extended thinking mode is enabled, `StreamEvent` emission is disabled. The stream produces only the final `result` event. Mid-run context pressure monitoring is not available in this mode.
+
 ### Token Field Mapping
 
 ```python
@@ -141,7 +160,9 @@ With `--json` enabled, stdout is a JSON Lines stream. Key event types:
 
 Event types: `thread.started`, `turn.started`, `turn.completed`, `turn.failed`, `item.started`, `item.completed`, `error`.
 
-Token usage appears on `turn.completed` events. A single execution may have multiple turns — all must be summed.
+Token usage appears on `turn.completed` events as **per-turn deltas** (not cumulative). A single execution may have multiple turns — all must be summed for total usage.
+
+**Mid-run monitoring:** Events arrive in real-time, not buffered. The harness reads this stream line by line, summing `input_tokens` and `output_tokens` from each `turn.completed` event to compute cumulative usage and context pressure. If the process is killed mid-turn, that turn's usage is not emitted. On `SIGINT`, Codex emits a `TurnAborted` event before exiting.
 
 ### Token Field Mapping
 
@@ -226,7 +247,9 @@ Alternative: `gemini -p "query"` or `echo "text" | gemini`.
 | `--all-files`, `-a` | Include all files in context |
 | `--include-directories` | Add specific directories to context |
 
-### JSON Output Format (Single Object)
+### JSON Output Format
+
+**Single object mode** (`--output-format json`):
 
 ```json
 {
@@ -268,6 +291,10 @@ Alternative: `gemini -p "query"` or `echo "text" | gemini`.
     }
 }
 ```
+
+**Stream mode** (`--output-format stream-json`): Emits NDJSON with event types `message`, `tool_use`, `tool_result`, `error`, and `result`. Token counts appear **only in the final `result` event** (inside `StreamStats`), not in intermediate events. This means mid-run context pressure monitoring is not available via the stream alone. Each NDJSON line is independently parseable, which avoids the invalid JSON problem that can occur with single-object mode.
+
+**Future path for mid-run tokens:** Gemini CLI supports OpenTelemetry export. The `gen_ai.client.token.usage` metric provides per-operation token counts. This would enable mid-run monitoring but requires an OTel collector or export parser — documented as a future enhancement.
 
 ### Token Fields
 
@@ -324,11 +351,15 @@ No documented session resume mechanism.
 
 | Capability | Claude Code | Codex CLI | Gemini CLI |
 |---|---|---|---|
-| Output format | Single JSON object | JSONL stream | Single JSON object |
+| Output format | JSON (`--output-format json`) or NDJSON stream (`--output-format stream-json`) | JSONL stream (`--json`) | JSON (`--output-format json`) or NDJSON stream (`--output-format stream-json`) |
+| Mid-run token streaming | Yes (NDJSON `message_start`/`message_delta` events with usage). Disabled when extended thinking is active. | Yes (JSONL `turn.completed` events with per-turn usage deltas) | No (tokens only in final `result` event). OpenTelemetry `gen_ai.client.token.usage` is a future alternative. |
+| Context window reported | Yes (`modelUsage.<model>.contextWindow`) | No (must use model metadata lookup) | No (must use model metadata lookup) |
 | Token naming | `input_tokens` / `output_tokens` | `input_tokens` / `output_tokens` | `prompt` / `candidates` |
 | Cache read | `cache_read_input_tokens` | `cached_input_tokens` | `cached` |
 | Cache write | `cache_creation_input_tokens` | Not reported | Not reported |
 | Cost reporting | `total_cost_usd` | Not reported | Not reported |
-| Session resume | `--resume <id>` | `resume <id>` | Not available |
+| Session resume | `--resume <id>`, `--continue` | `resume <id>`, `resume --last` | Not available |
 | Auto-approve | `--dangerously-skip-permissions` | `--full-auto` | `--yolo` |
 | Headless mode | `-p` | `exec` | `-p` |
+| Graceful stop signal | `SIGTERM` (exit 143, no final output) | `SIGINT` (emits `TurnAborted` in JSONL; second `SIGINT` = hard kill) | `SIGTERM` (clean exit code 0, no final result event) |
+| Timeout behavior | [Subprocess Termination Procedure](ARCHITECTURE.md#subprocess-termination-procedure) (immediate): `SIGTERM` → 5s → `SIGKILL`. All complete NDJSON lines preserved. Exit code typically `-15` or `-9`. | Subprocess Termination Procedure (immediate): `SIGINT` → 5s → `SIGKILL`. All complete JSONL lines preserved. Exit code typically `130` or `-9`. | Subprocess Termination Procedure (immediate): `SIGTERM` → 5s → `SIGKILL`. All complete NDJSON lines preserved. Exit code typically `-15` or `-9`. |

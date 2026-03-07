@@ -2,27 +2,29 @@
 
 ## System Overview
 
-The harness is a Python CLI application that orchestrates AI coding agents. It loads task definitions, creates isolated sandboxes, invokes agents as subprocesses, parses their output, normalizes token usage, and generates evaluation reports.
+The harness is a Python CLI application that orchestrates AI coding agents with **context pressure monitoring** as its core function. It loads task definitions, creates isolated sandboxes, invokes agents as subprocesses, monitors their token consumption in real-time against the model's context window, and intervenes when pressure thresholds are crossed — ensuring work is persisted before quality degrades.
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  harness CLI                     │
-│                  (cli.py)                        │
-├─────────────────────────────────────────────────┤
-│               Orchestrator                       │
-│               (runner.py)                        │
-├──────────┬──────────┬───────────┬───────────────┤
-│ Dispatch │ Sandbox  │  Capture  │  Evaluation   │
-│          │          │           │               │
-│ Load     │ Tempdir  │ Parse     │ Validate      │
-│ task     │ Worktree │ JSON      │ Score         │
-│ JSON     │ Copy     │ Normalize │ Report        │
-│ Invoke   │ Seed     │ tokens    │               │
-│ agent    │ Setup    │ Diff      │               │
-├──────────┴──────────┴───────────┴───────────────┤
-│              Agent Adapters                      │
-│     claude.py   codex.py   gemini.py            │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                     harness CLI                          │
+│                     (cli.py)                             │
+├──────────────────────────────────────────────────────────┤
+│                    Orchestrator                          │
+│                    (runner.py)                           │
+├──────────┬──────────┬─────────────┬──────────┬──────────┤
+│ Dispatch │ Sandbox  │  Pressure   │ Capture  │ Evaluate │
+│          │          │  Monitor    │          │          │
+│ Load     │ Tempdir  │ Stream      │ Parse    │ Validate │
+│ task     │ Worktree │ parse       │ JSON     │ Score    │
+│ JSON     │ Copy     │ Track       │ Normalize│ Report   │
+│ Invoke   │ Seed     │ tokens      │ tokens   │          │
+│ agent    │ Setup    │ Zone check  │ Diff     │          │
+│          │          │ Kill/wrap-up│ Artifacts│          │
+├──────────┴──────────┴─────────────┴──────────┴──────────┤
+│                  Agent Adapters                          │
+│        claude.py    codex.py    gemini.py                │
+│    (stream-json)   (JSONL)    (stream-json)              │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Project Structure
@@ -35,8 +37,9 @@ agentic_harness/
             __init__.py
             cli.py                  # Click-based CLI entrypoint
             runner.py               # Orchestrator: runs tasks against agents
+            monitor.py              # Context pressure monitor (stream parser + zone logic)
             models.py               # Core dataclasses/TypedDicts
-            tokens.py               # Token normalization logic
+            tokens.py               # Token normalization + ContextPressure + ZoneConfig
             sandbox.py              # Execution isolation (worktrees/tmp dirs)
             evaluate.py             # Result evaluation and scoring
             agents/
@@ -51,7 +54,7 @@ agentic_harness/
     tests/
 ```
 
-## Four Subsystems
+## Five Subsystems
 
 ### 1. Task Dispatch (`runner.py`)
 
@@ -71,11 +74,48 @@ After the sandbox is created, seed files from `files` are written (overwriting o
 
 Artifacts and diffs are captured *before* the sandbox is cleaned up.
 
-### 3. Output Capture (`agents/*.py`)
+#### Subprocess Termination Procedure
 
-Each adapter parses the agent's stdout (JSON or JSONL), extracts the result text, and normalizes token usage into a unified model (see [TOKENS.md](TOKENS.md)). Raw output is preserved for debugging.
+A shared procedure used whenever the harness needs to kill an agent subprocess — whether triggered by context pressure zone actions or wall-clock timeout. Two modes:
 
-### 4. Evaluation (`evaluate.py`)
+| Mode | When Used | Behavior |
+|---|---|---|
+| **Graceful** | Yellow zone (context pressure) | Wait for the agent's current turn to complete, then signal |
+| **Immediate** | Red zone (context pressure), timeout | Signal immediately — do not wait for the current turn |
+
+**Signal sequence:**
+
+1. Send `SIGINT` for Codex (triggers `TurnAborted` event in JSONL), `SIGTERM` for Claude and Gemini
+2. Wait up to 5 seconds for the process to exit
+3. If still alive after 5 seconds, send `SIGKILL`
+
+**Post-kill output recovery:**
+
+- Drain the stdout buffer — all complete NDJSON/JSONL lines received before the kill point are captured and parseable
+- Discard any incomplete final line (partial JSON is not recoverable)
+- Since all three agents emit streaming NDJSON/JSONL output (per issue #6), partial output is always line-recoverable on kill — there is no truncated single-JSON blob problem
+
+**Exit codes:** The process `returncode` is recorded as-is. Typical values: `-15` (SIGTERM), `-9` (SIGKILL), `130` (Codex SIGINT convention).
+
+**Callers:** Context pressure zone actions ([SESSIONS.md — Zone Actions](SESSIONS.md#zone-actions)) and wall-clock timeout ([SESSIONS.md — Timeout](SESSIONS.md#timeout--wall-clock-limit-exceeded)).
+
+### 3. Context Pressure Monitor (`monitor.py`)
+
+The defining subsystem of the harness. Runs concurrently with the agent subprocess, reading the NDJSON/JSONL output stream line by line, computing context pressure after each turn, and triggering zone actions when thresholds are crossed.
+
+- **Input:** Agent's stdout stream (NDJSON or JSONL), model context window size (from config or `modelUsage`), zone thresholds (from `ZoneConfig`)
+- **Output:** `ContextPressure` result (zone, utilization, measurement method), kill signal if threshold crossed
+- **Data structures:** `ContextPressure`, `ZoneConfig` — defined in [TOKENS.md](TOKENS.md)
+- **Zone actions:** Green → continue; Yellow → graceful stop + harness wrap-up; Red → immediate kill + harness wrap-up
+- **Degraded mode:** When mid-run tokens are unavailable (Gemini, Claude with extended thinking), the monitor reads the stream for tool/message events but can only compute pressure post-completion
+
+See [SESSIONS.md — Context Pressure Monitoring](SESSIONS.md#context-pressure-monitoring) for the full protocol.
+
+### 4. Output Capture (`agents/*.py`)
+
+Each adapter parses the agent's stdout (JSON or JSONL), extracts the result text, and normalizes token usage into a unified model (see [TOKENS.md](TOKENS.md)). When the monitor has already parsed the stream (real-time mode), the capture step works from the buffered stream data rather than re-reading stdout. Raw output is preserved for debugging.
+
+### 5. Evaluation (`evaluate.py`)
 
 Runs `validation_commands` in the sandbox after the agent finishes. Scoring is binary — all commands pass (score 1.0) or any fails (score 0.0). Results are written to a structured JSON report (see [REPORTS.md](REPORTS.md)).
 
@@ -106,22 +146,31 @@ class AgentAdapter(Protocol):
 
 The `run` method is `async` because all three CLIs are subprocess invocations that benefit from `asyncio.create_subprocess_exec`.
 
-## Token Normalization Model
+## Token Normalization & Context Pressure Model
 
 Token normalization — the `NormalizedTokenUsage` dataclass, normalization rules, field mapping table, `BudgetStatus` enum, and `analyze_budget` function — is documented in [TOKENS.md](TOKENS.md). Per-agent token field mappings and adapter code are in [AGENTS.md](AGENTS.md).
+
+Context pressure data structures — `ContextPressure`, `ZoneConfig`, and the model context window lookup — are also defined in [TOKENS.md](TOKENS.md). The monitoring protocol and zone actions are in [SESSIONS.md — Context Pressure Monitoring](SESSIONS.md#context-pressure-monitoring).
 
 ## Execution Flow
 
 1. Load task definition from JSON
-2. Create isolated sandbox per `workspace.type` (tempdir, worktree, or copy)
-3. Seed files and run setup commands in sandbox
-4. Invoke agent CLI as subprocess in sandbox directory
-5. Parse agent's JSON output for token usage and result
-6. Normalize tokens into unified model
-7. Capture diff and artifacts before sandbox cleanup
-8. Run validation commands in sandbox
-9. Generate evaluation result
-10. Save structured JSON report to `results/{task_id}_{YYYYMMDD_HHMMSS}.json` (see [REPORTS.md](REPORTS.md))
+2. Resolve model context window (from config lookup or agent-reported metadata)
+3. Create isolated sandbox per `workspace.type` (tempdir, worktree, or copy)
+4. Seed files and run setup commands in sandbox
+5. Invoke agent CLI as subprocess in sandbox directory (stream-json mode)
+6. **Monitor stream in real-time** — parse NDJSON/JSONL line by line, compute context pressure per turn. Concurrently run wall-clock timer against `timeout_seconds`:
+   - Green zone → continue reading stream
+   - Yellow zone → [Subprocess Termination Procedure](#subprocess-termination-procedure) (graceful); `termination_reason=context_pressure`; proceed to harness wrap-up (step 7a)
+   - Red zone → [Subprocess Termination Procedure](#subprocess-termination-procedure) (immediate); `termination_reason=context_pressure`; proceed to harness wrap-up (step 7a)
+   - Degraded mode (no mid-run tokens) → read stream for events only, compute pressure post-completion
+   - Timeout → if wall-clock exceeds `timeout_seconds`, [Subprocess Termination Procedure](#subprocess-termination-procedure) (immediate); `termination_reason=timed_out`; proceed to harness wrap-up (step 7a)
+7. Parse final or partial output from stream buffer; normalize tokens into unified model
+   - 7a. *(If terminated by harness — context pressure or timeout)* **Harness wrap-up:** commit uncommitted changes, write run log, update PROGRESS.md, log termination metrics. Optionally dispatch post-kill summary agent (yellow zone only — not dispatched for red zone or timeout).
+8. Capture diff and artifacts before sandbox cleanup
+9. Run validation commands in sandbox
+10. Generate evaluation result (including `ContextPressure` in report)
+11. Save structured JSON report to `results/{task_id}_{YYYYMMDD_HHMMSS}.json` (see [REPORTS.md](REPORTS.md))
 
 ## CLI Design
 

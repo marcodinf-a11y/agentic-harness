@@ -38,59 +38,47 @@ Cross-document review of all seven specification files, with focus on greenfield
 
 ---
 
-### 6. Context window monitoring is a phantom feature
+### ~~6. Context window monitoring is a phantom feature~~ — RESOLVED
 
-**Documents:** SESSIONS.md vs all others
+**Status:** Resolved. Context pressure monitoring is now the **core feature** of the harness, not a phantom. Complete redesign:
 
-SESSIONS.md lines 79-89 define context window monitoring with Green/Yellow/Red thresholds (0-40%, 41-50%, 51-100%). But:
-
-- No other document references these thresholds
-- No enum or data structure is defined for them (unlike `BudgetStatus` which has `WITHIN`/`WARNING`/`EXCEEDED`)
-- Only Claude Code reports `contextWindow` size in its output; Codex and Gemini do not
-- The threshold bands are inconsistent with budget thresholds: Red starts at 51% context usage vs Warning at 80% budget usage — a completely different scale with no rationale
-- SESSIONS.md line 89 says this is "most relevant for multi-turn sessions" but line 9 defines a session as "a single task execution" and says "The harness does not maintain multi-turn conversations with agents"
-
-This feature has no implementation path, no data source for two of three agents, and is internally contradictory with the session model.
-
-**Fix:** Either remove the context window monitoring section entirely, or:
-
-1. Move it to a "Future" section
-2. Define a data structure for it
-3. Document which agents support it
-4. Reconcile the threshold scale with budget thresholds
-5. Clarify when it applies (multi-turn continuation only)
+- **BRIEF.md** reframed: context pressure is the primary operational metric, elevated to its own pillar ("Five Pillars" instead of four). Token budget repositioned as a complementary cost constraint.
+- **SESSIONS.md** completely rewritten: Step 4 (MONITOR) is now the defining step. Full protocol documented: pressure zones (Green 0–60%, Yellow 60–80%, Red >80% — configurable globally and per-model), zone actions (Yellow = graceful stop + harness wrap-up, Red = immediate kill + harness wrap-up), per-agent measurement capabilities, degraded mode for agents without mid-run tokens, harness wrap-up protocol, post-kill summary agent, and agent prompt engineering for defense in depth.
+- **TOKENS.md** now defines `ContextPressure` and `ZoneConfig` data structures, model context window lookup (config-based with agent-reported override for Claude).
+- **AGENTS.md** cross-agent table corrected: Claude and Gemini both support `--output-format stream-json` (not "Single JSON object"). Streaming event types documented per agent. Mid-run token availability: Claude (yes, except extended thinking), Codex (yes, per-turn deltas), Gemini (no — tokens only in final event, OpenTelemetry as future path). Signal behavior documented (SIGINT/SIGTERM per agent).
+- **ARCHITECTURE.md** updated: system diagram shows Pressure Monitor subsystem, execution flow includes real-time monitoring loop with zone branching, project structure includes `monitor.py`.
+- Multi-turn contradiction removed: context pressure accumulates within a single execution's internal turns, not across multi-turn sessions.
+- Threshold scale reconciled: Yellow zone onset (60%) is now in the same order of magnitude as budget WARNING (80%), both representing the acceleration zone where quality/resource risk increases.
 
 ---
 
 ## Medium
 
-### 7. No turn limit for Codex and Gemini — runaway execution risk
+### 7. Turn limit asymmetry across agents
 
-**Documents:** AGENTS.md
+**Documents:** AGENTS.md, SESSIONS.md
 
-Claude's invocation includes `--max-turns 50`. Neither Codex nor Gemini have an equivalent flag documented. The CLI flag tables (AGENTS.md lines 113-122 for Codex, lines 199-210 for Gemini) list no turn/iteration limit.
+Claude's invocation includes `--max-turns 50`. Neither Codex nor Gemini expose an equivalent CLI flag. Gemini has `maxSessionTurns` in settings.json but it is not a CLI parameter the adapter can set per-task.
 
-The token budget is a reporting metric, not a hard stop — SESSIONS.md confirms the harness does not intervene mid-run. The only guardrail is `timeout_seconds` (default 300). Five minutes of unconstrained agentic execution can consume far more than the 70k budget.
+**Mitigated by #6 resolution:** The context pressure monitor now provides a universal guardrail that bounds execution regardless of turn limits. The harness reads NDJSON/JSONL streams in real-time for Claude and Codex, classifies context pressure into zones, and intervenes with hard kills (Yellow = graceful stop after current turn, Red = immediate SIGTERM/SIGKILL). This makes `--max-turns` a defense-in-depth measure for Claude rather than the sole safeguard. Gemini operates in degraded mode (post-completion monitoring only) but is still bounded by `timeout_seconds`.
 
-**Fix:** Investigate whether Codex and Gemini CLIs have undocumented turn limit flags. If not, document the asymmetry explicitly. Consider adding a `max_turns` field to `TaskDefinition` that is passed to agents that support it. For Codex, the adapter could monitor `turn.completed` events in the JSONL stream and terminate the subprocess if a threshold is exceeded.
+**Remaining gap:** The asymmetry is cosmetic for Claude and Codex (context pressure is the real guardrail), but Gemini lacks both mid-run token visibility and a CLI turn limit — it relies solely on `timeout_seconds` and post-completion budget analysis. A `max_turns` field on `TaskDefinition` would still be useful for agents that support it.
+
+**Fix:** Document the asymmetry in the cross-agent table. Consider a `max_turns` field on `TaskDefinition` passed to agents that support it. For Codex, the adapter could count `turn.completed` events in the JSONL stream as a secondary bound.
 
 ---
 
-### 8. Timeout enforcement is unspecified
+### ~~8. Timeout enforcement is unspecified~~ — RESOLVED
 
-**Documents:** TASKS_JSON.md, ARCHITECTURE.md
+**Status:** Resolved. Timeout enforcement is now fully specified via the shared Subprocess Termination Procedure in ARCHITECTURE.md:
 
-`timeout_seconds` exists in the task schema (default 300) but the documentation never specifies:
+- **Signal sequence:** `SIGINT` for Codex (triggers `TurnAborted`), `SIGTERM` for Claude/Gemini; 5-second grace period; `SIGKILL` if still alive.
+- **Partial output:** All complete NDJSON/JSONL lines are captured and parseable. Incomplete final line is discarded. Since issue #6 changed all agents to streaming NDJSON/JSONL output, the original concern about truncated single-JSON blobs no longer applies.
+- **Exit codes:** Process `returncode` recorded as-is (typically `-15` SIGTERM, `-9` SIGKILL, `130` Codex SIGINT).
+- **Report field:** `termination_reason` added to the report schema with enum values: `completed`, `timed_out`, `context_pressure`, `error`. Replaces the proposed `timed_out: bool` with a richer enum.
+- **Shared procedure:** The same termination procedure is used by both context pressure zone actions and wall-clock timeout, with two modes (graceful for yellow zone, immediate for red zone and timeout).
 
-- The enforcement mechanism (`asyncio.wait_for`? Manual timer with `process.kill`?)
-- The signal sequence (SIGTERM first, then SIGKILL? Or immediate SIGKILL?)
-- Whether partial output is captured on timeout
-- What `exit_code` is reported (typically -9 for SIGKILL, -15 for SIGTERM)
-- Whether `timed_out` appears anywhere in the report format
-
-For Codex JSONL, partial output is recoverable — every complete line up to the kill point can be parsed. For Claude and Gemini single-JSON output, a timeout almost certainly means incomplete JSON, which collapses to the Gemini JSON fallback problem (issue #9).
-
-**Fix:** Document the timeout sequence: (a) send SIGTERM, (b) wait 5 seconds, (c) send SIGKILL if still alive, (d) drain remaining stdout/stderr. Add `timed_out: bool` to the report. Define partial output handling per agent.
+Cross-references: ARCHITECTURE.md (Subprocess Termination Procedure, execution flow step 6), SESSIONS.md (Timeout subsection, Zone Actions, Harness Wrap-Up Protocol), REPORTS.md (`termination_reason` field), TASKS.md (`timeout_seconds` field description), AGENTS.md (Timeout behavior row in cross-agent table).
 
 ---
 
@@ -245,9 +233,9 @@ The invocation example uses `--full-auto`. The cross-agent table maps Codex auto
 | 3  | ~~Codex fails without git~~ | ~~Critical~~ | ~~Adapter edge case~~ — **RESOLVED** |
 | 4  | ~~Cache token semantics ambiguous~~ | ~~High~~ | ~~Token normalization~~ — **RESOLVED** |
 | 5  | ~~"Not a benchmark tool" contradiction~~ | ~~High~~ | ~~Framing~~ — **RESOLVED** |
-| 6  | Context window monitoring is phantom | High | Phantom feature |
-| 7  | No turn limit for Codex/Gemini | Medium | Runaway execution |
-| 8  | Timeout enforcement unspecified | Medium | Error handling |
+| 6  | ~~Context window monitoring is phantom~~ | ~~High~~ | ~~Phantom feature~~ — **RESOLVED** |
+| 7  | Turn limit asymmetry across agents | Low | Defense-in-depth gap (Gemini only) |
+| 8  | ~~Timeout enforcement unspecified~~ | ~~Medium~~ | ~~Error handling~~ — **RESOLVED** |
 | 9  | Gemini JSON fallback undefined | Medium | Error handling |
 | 10 | Execution flow ordering mismatch | Medium | Cross-doc inconsistency |
 | 11 | Report format internal inconsistency | Medium | Schema |

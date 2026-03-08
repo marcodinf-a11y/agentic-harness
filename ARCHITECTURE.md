@@ -244,7 +244,7 @@ Context pressure data structures — `ContextPressure`, `ZoneConfig`, and the mo
    - Degraded mode (no mid-run tokens) → read stream for events only, compute pressure post-completion
    - Timeout → if wall-clock exceeds `timeout_seconds`, [Subprocess Termination Procedure](#subprocess-termination-procedure) (immediate); `termination_reason=timed_out`; proceed to Rein wrap-up (step 8a)
 8. Parse final or partial output from stream buffer; normalize tokens into unified model
-   - 8a. *(If terminated by Rein — context pressure or timeout)* **Rein wrap-up:** commit uncommitted changes, write run log, update PROGRESS.md, log termination metrics. Optionally dispatch post-kill summary agent (yellow zone only — not dispatched for red zone or timeout).
+   - 8a. **Rein wrap-up** (runs unconditionally, any `termination_reason`): check for uncommitted changes and commit with `rein:` prefix if present (FR-060), write run log, update PROGRESS.md, log termination metrics. Optionally dispatch post-kill summary agent (yellow zone only — not dispatched for red zone or timeout).
 9. Capture diff against `baseline_sha` (recorded at sandbox creation in step 2): `git diff <baseline_sha> HEAD` (full patch) and `git diff --stat <baseline_sha> HEAD` (summary). Write patch to `results/{task_id}_{timestamp}.patch`.
 10. Run validation commands in sandbox
 11. Generate evaluation result (including `ContextPressure` in report)

@@ -29,9 +29,16 @@ FR-093 defines the retry cap (default 4) but not the retry loop itself. Resolved
 | FR-093c | Cross-round knowledge injection: before each retry, inject into the prompt: (1) updated LEARNINGS.md extracted from the failed round (per FR-091a), (2) condensed failure narrative — progress classification, plain-language termination reason, validation output truncated to 30-line excerpt, `git diff --stat` summary of files touched. | `runner.py`, `prompts.py` |
 | FR-093d | Operator vs. agent reporting split: the full escalation report (FR-092) is written to the JSON report for the operator. The agent receives only the condensed failure narrative from FR-093c. | `escalation.py`, `prompts.py` |
 
-### G-2: No FR for PROGRESS.md / DEFERRED.md creation
+### G-2: PROGRESS.md / DEFERRED.md sandbox seeding — RESOLVED
 
-FR-094 mentions these files in prompt injection. FR-062 says "update PROGRESS.md". But no FR covers *creating* them at sandbox setup time — parallel to FR-091's LEARNINGS.md injection.
+Resolved via [ADR-015](adr/ADR-015-progress-deferred-sandbox-seeding.md). Both files seeded at sandbox setup with minimal templates. PROGRESS.md capped at 100 lines (advisory). DEFERRED.md uncapped. Both start empty every run (no project root seeding). Carry-forward follows FR-093b sandbox state policy. No write-back to project root in R1.
+
+#### Proposed FRs
+
+| ID | Requirement | Module |
+|----|-------------|--------|
+| FR-094a | Seed PROGRESS.md with section template (Completed / In Progress / Blocked) and 100-line advisory cap at sandbox setup. On carry-forward retry (FR-093b), keep as-is. On fresh retry, reset to template. | `sandbox.py` |
+| FR-094b | Seed DEFERRED.md with header template at sandbox setup. On carry-forward retry (FR-093b), keep as-is. On fresh retry, reset to template. No size cap. | `sandbox.py` |
 
 ### G-3: No FR for config file parsing
 

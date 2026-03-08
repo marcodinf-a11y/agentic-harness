@@ -178,7 +178,7 @@ The defining subsystem of Rein. Runs concurrently with the agent subprocess, rea
 - **Output:** `ContextPressure` result (zone, utilization, measurement method), kill signal if threshold crossed
 - **Data structures:** `ContextPressure`, `ZoneConfig` — defined in [TOKENS.md](TOKENS.md)
 - **Zone actions:** Green → continue; Yellow → graceful stop + Rein wrap-up; Red → immediate kill + Rein wrap-up
-- **Degraded mode:** When mid-run tokens are unavailable (Gemini, Claude with extended thinking), the monitor reads the stream for tool/message events but can only compute pressure post-completion
+- **Degraded mode:** Activates statically (Gemini, Claude with extended thinking — no mid-run tokens) or dynamically (stream parse failure mid-run — log warning, fall back). In either case, the monitor reads the stream for events but computes pressure post-completion only
 
 See [SESSIONS.md — Context Pressure Monitoring](SESSIONS.md#context-pressure-monitoring) for the full protocol.
 

@@ -106,9 +106,9 @@ Sub-IDs are now the established convention across the PRD (FR-011a, FR-015a/b, F
 
 Turn boundary detection is per-agent. Monitor sets `kill_pending` flag on yellow; fires kill at the next turn boundary. For Claude Code: inter-call gap (after last `message_delta`, before next `message_start`). For Codex: `turn.completed` event. Degraded-mode agents (no mid-run tokens) cannot trigger yellow mid-run — pressure computed post-completion only. FR-036 and SESSIONS.md Zone Actions updated.
 
-### S-2: FR-038 "degraded mode" activation criteria
+### S-2: FR-038 "degraded mode" activation criteria — RESOLVED
 
-When does degraded mode activate? Only for agents that don't emit mid-turn tokens (Codex)? Also as a fallback when stream parsing fails mid-run? Needs explicit trigger conditions.
+Two trigger conditions: (1) **static** — agent/mode known to lack mid-run tokens (Gemini, Claude with extended thinking), set at invocation; (2) **dynamic** — stream parse failure mid-run for an agent that normally supports real-time monitoring, logged as warning, falls back to post-completion pressure computation. FR-038, SESSIONS.md, and ARCHITECTURE.md updated.
 
 ### S-3: Empty validation_commands scoring
 
@@ -142,7 +142,7 @@ S6 lists Windows as a target. FR-047's SIGTERM/SIGKILL are POSIX-only. No FR add
 1. Add FR cluster for retry orchestration (G-1)
 2. Reconcile config format to `rein.toml` everywhere (I-1)
 3. Add FR for workspace source path (G-4)
-4. ~~Tighten FR-036/038 with one sentence each on mechanism (S-1, S-2)~~ S-1 resolved. S-2 still open.
+4. ~~Tighten FR-036/038 with one sentence each on mechanism (S-1, S-2)~~ Resolved.
 5. Add FR for PROGRESS.md / DEFERRED.md seeding (G-2)
 6. Specify empty-validation scoring behavior (S-3)
 7. Address Windows process termination or scope R1 to POSIX

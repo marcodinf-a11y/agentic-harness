@@ -107,7 +107,12 @@ Not all agents provide the same level of mid-run token visibility:
 | **Codex CLI** | Yes | `--json` JSONL stream. `turn.completed` events carry per-turn usage deltas. | Per turn |
 | **Gemini CLI** | No — partial | `--output-format stream-json` streams structured events, but token counts only appear in the final `result` event. | Post-completion only |
 
-**Degraded mode:** When mid-run monitoring is unavailable (Gemini, Claude with extended thinking), rein checks context pressure post-completion only. The pressure zone is logged in the report for future task sizing decisions, but rein cannot intervene mid-run. For Gemini, OpenTelemetry export (`gen_ai.client.token.usage` metric) is a documented future path for mid-run token visibility.
+**Degraded mode** activates under two conditions:
+
+1. **Static (at invocation):** The agent/mode is known to lack mid-run token visibility — Gemini CLI and Claude Code with extended thinking. Set before the monitor loop starts.
+2. **Dynamic (mid-run fallback):** Stream parsing fails for an agent that normally supports real-time monitoring (e.g., malformed NDJSON from Claude, unexpected format change). The monitor logs a warning, stops attempting mid-run pressure computation, and continues reading the stream for events only.
+
+In both cases, rein computes context pressure post-completion only. The pressure zone is logged in the report for future task sizing decisions, but rein cannot intervene mid-run. For Gemini, OpenTelemetry export (`gen_ai.client.token.usage` metric) is a documented future path for mid-run token visibility.
 
 ### Zone Actions
 

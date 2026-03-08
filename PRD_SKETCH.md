@@ -67,7 +67,7 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 | FR-035 | Green zone: continue execution | SESSIONS.md | `monitor.py` |
 | FR-036 | Yellow zone: set `kill_pending` flag; fire graceful kill at the next turn boundary. Turn boundary detection is per-agent: Claude — inter-call gap (after last `message_delta`, before next `message_start`); Codex — `turn.completed` event. Agents in degraded mode (no mid-run tokens) cannot trigger yellow mid-run. | SESSIONS.md | `monitor.py` |
 | FR-037 | Red zone: trigger immediate kill | SESSIONS.md | `monitor.py` |
-| FR-038 | Degraded mode: when mid-run tokens unavailable, compute pressure post-completion only | SESSIONS.md | `monitor.py` |
+| FR-038 | Degraded mode: activate when (a) the agent/mode is known to lack mid-run tokens (Gemini, Claude with extended thinking — static, set at invocation) or (b) stream parsing fails mid-run for an agent that normally supports real-time monitoring (dynamic fallback — log warning, continue reading stream without pressure computation). In either case, compute pressure post-completion only; yellow zone cannot trigger mid-run. | SESSIONS.md | `monitor.py` |
 | FR-039 | Run wall-clock timer concurrently; timeout triggers immediate kill with `termination_reason=timed_out` | SESSIONS.md | `monitor.py` |
 | FR-040 | Timeout and pressure: whichever fires first wins, the other is cancelled | SESSIONS.md | `monitor.py` |
 

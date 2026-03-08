@@ -12,7 +12,8 @@ class NormalizedTokenUsage:
     output_tokens: int
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
-    total_tokens: int = 0  # Computed: input + output
+    reload_tokens: int = 0   # Context reload overhead (first-turn input tokens)
+    total_tokens: int = 0    # Computed: input + output
 
     def __post_init__(self):
         object.__setattr__(self, "total_tokens", self.input_tokens + self.output_tokens)
@@ -25,6 +26,7 @@ The `frozen=True` dataclass requires `object.__setattr__` in `__post_init__` to 
 - `total_tokens` is always `input_tokens + output_tokens` — never pulled from agent-specific "total" fields.
 - Thinking/reasoning tokens are excluded from the total (agent-internal, not controllable).
 - Cache tokens are tracked but not added to the total.
+- Reload tokens are a subset of `input_tokens` — tracked for visibility, not added separately to the total.
 - Budget checks use `total_tokens`.
 
 ## Field Mapping
@@ -37,6 +39,7 @@ Each agent reports token usage differently. Rein normalizes into the fields abov
 | `output_tokens` | `usage.output_tokens` | sum of `usage.output_tokens` across `turn.completed` events | sum of `tokens.candidates` across models |
 | `cache_read_tokens` | `usage.cache_read_input_tokens` | sum of `usage.cached_input_tokens` across `turn.completed` events | sum of `tokens.cached` across models |
 | `cache_write_tokens` | `usage.cache_creation_input_tokens` | 0 (not reported) | 0 (not reported) |
+| `reload_tokens` | `input_tokens` from first `message_start` event | `input_tokens` from first `turn.completed` event | `prompt` from first model in final `result` (post-completion only) |
 
 `cache_write_tokens` is only available from Claude Code. This asymmetry is documented, not hidden.
 
@@ -51,6 +54,43 @@ Providers differ in whether their "input" field includes cached tokens. Rein nor
 - **Gemini / Google**: `prompt` is **INCLUSIVE** of cache. `cached` is a subset, not additive. No adjustment needed.
 
 Claude is the odd one out — without the summation fix, its normalized `input_tokens` would be just the uncached tail (e.g., 3 tokens when 23,000+ were actually processed), making budget calculations off by orders of magnitude.
+
+## Context Reload Cost
+
+Every time an agent session starts (or restarts after a context pressure kill), it pays a "cold start tax" — tokens consumed re-ingesting the system prompt, task definition, seed files, and LEARNINGS.md before any productive work begins. Rein tracks this as `reload_tokens`.
+
+### Measurement
+
+`reload_tokens` is the `input_tokens` reported by the agent's **first turn**. This is the entire injected context before the agent produces any work. Rein controls what goes into this payload (it assembles the prompt at dispatch time), and the agent's own token count is the most accurate measurement.
+
+| Agent | Source | Timing |
+|---|---|---|
+| Claude Code | `input_tokens` from first `message_start` event in NDJSON stream | Real-time |
+| Codex CLI | `input_tokens` from first `turn.completed` event in JSONL stream | Real-time |
+| Gemini CLI | `prompt` from final `result` event (single-turn approximation) | Post-completion |
+
+For Gemini (post-completion only), the first-turn input is not separately available mid-run. The total `prompt` tokens from the final result serve as an upper bound — acceptable because Gemini sessions are not interrupted mid-run by context pressure monitoring.
+
+### Budget Interaction
+
+`reload_tokens` is a **subset** of `input_tokens`, not additive. It does not change budget math — `total_tokens` remains `input_tokens + output_tokens`. The counter exists purely for **visibility**: operators can see how much of their token spend went to context setup vs. productive work.
+
+### Multi-Session Reload Overhead
+
+For tasks that span multiple sessions (context pressure kills trigger fresh sessions), cumulative reload cost compounds:
+
+```
+total_reload = sum(session.reload_tokens for session in task.sessions)
+reload_overhead_pct = total_reload / cumulative_total_tokens * 100
+```
+
+This metric is tracked in `task_state.json` (see [SESSIONS.md — Multi-Session Patterns](SESSIONS.md#multi-session-patterns)) and surfaced in the report's `budget_analysis` block. An operator seeing `reload_overhead_pct: 38%` knows their task decomposition is too fine-grained or their seed files are too large.
+
+### Reducing Reload Cost
+
+- **LEARNINGS.md** reduces wasted rediscovery turns (1–3 turns saved per session) at the cost of a few hundred tokens of reload overhead. Net positive.
+- **Prompt caching** (API-level) gives 50–90% cost discount on cached reads. Seed files that don't change between sessions hit cache automatically.
+- **Smaller seed files** reduce per-session reload cost. Keep LEARNINGS.md under 80 lines (see [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)).
 
 ## Context Pressure Model
 
@@ -167,10 +207,14 @@ def analyze_budget(usage, budget=70_000):
             "cache_read_tokens": usage.cache_read_tokens,
             "cache_write_tokens": usage.cache_write_tokens,
         },
+        "reload_cost": {
+            "reload_tokens": usage.reload_tokens,
+            "reload_pct": round(usage.reload_tokens / usage.total_tokens * 100, 1) if usage.total_tokens > 0 else 0.0,
+        },
     }
 ```
 
-`cache_efficiency` is always included in the output. It provides visibility into how much of the input was served from cache versus freshly processed, which is useful for diagnosing cost and latency even though cache tokens do not count toward the budget.
+`cache_efficiency` provides visibility into how much of the input was served from cache versus freshly processed. `reload_cost` shows how much of the total token spend went to context setup (cold start overhead). Both are always included — they do not affect budget math.
 
 Example output:
 
@@ -184,9 +228,15 @@ Example output:
     "cache_efficiency": {
         "cache_read_tokens": 9000,
         "cache_write_tokens": 3500
+    },
+    "reload_cost": {
+        "reload_tokens": 12500,
+        "reload_pct": 93.6
     }
 }
 ```
+
+In this example, 93.6% of tokens went to context reload — typical for a short, single-turn session. For multi-turn sessions, `reload_pct` decreases as productive work accumulates.
 
 ## Budget Override
 

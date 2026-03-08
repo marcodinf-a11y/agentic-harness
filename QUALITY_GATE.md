@@ -502,6 +502,7 @@ Fix these issues. The code is already in the working directory from your previou
 - The review agent runs fresh in each round — it does not carry context from previous reviews
 - `max_rounds` is configurable (default: 4). Setting `max_rounds = 1` disables retries.
 - **Learnings extraction happens once** after the final verdict (pass, warn, or fail), not after each round. This ensures only the final sandbox state — which reflects the cumulative work of all rounds — is persisted to `.rein/LEARNINGS.md`. See [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md).
+- **Context reload cost compounds across rounds.** Each retry round pays the cold-start tax (system prompt + task prompt + seed files + LEARNINGS.md + quality gate feedback). The `reload_tokens` field in each round's `normalized_tokens` tracks this overhead. Cumulative reload cost is visible in the report's `total_tokens` section. See [TOKENS.md — Context Reload Cost](TOKENS.md#context-reload-cost).
 
 ---
 
@@ -585,6 +586,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
                     "output_tokens": 12000,
                     "cache_read_tokens": 30000,
                     "cache_write_tokens": 8000,
+                    "reload_tokens": 23000,
                     "total_tokens": 57000
                 },
                 "budget_status": "within",
@@ -694,6 +696,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
                     "output_tokens": 8000,
                     "cache_read_tokens": 25000,
                     "cache_write_tokens": 6000,
+                    "reload_tokens": 20000,
                     "total_tokens": 46000
                 },
                 "budget_status": "within",
@@ -792,6 +795,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
         "implementation": {
             "input_tokens": 83000,
             "output_tokens": 20000,
+            "reload_tokens": 43000,
             "total_tokens": 103000
         },
         "review": {
@@ -802,6 +806,8 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
         "combined": {
             "input_tokens": 100500,
             "output_tokens": 22000,
+            "reload_tokens": 43000,
+            "reload_overhead_pct": 35.1,
             "total_tokens": 122500
         }
     },
@@ -822,7 +828,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
 | `escalation_report` | Structured failure narrative when `final_verdict == "fail"`, otherwise `null` ([ADR-012](docs/adr/ADR-012-structured-escalation-report.md)) |
 | `final_verdict` | The verdict from the last round — the one that matters |
 | `total_rounds` | How many rounds were needed (1 = first attempt passed) |
-| `total_tokens` | Aggregate across all rounds, split by implementation vs review |
+| `total_tokens` | Aggregate across all rounds, split by implementation vs review. Includes `reload_tokens` (cumulative cold-start overhead) and `reload_overhead_pct` (reload as percentage of combined total). |
 | `total_cost_usd` | Sum across all rounds and review agents |
 | `total_duration_seconds` | Wall clock for the full pipeline including all rounds |
 

@@ -27,6 +27,7 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
                 "output_tokens": 850,
                 "cache_read_tokens": 9000,
                 "cache_write_tokens": 3500,
+                "reload_tokens": 12500,
                 "total_tokens": 13350
             },
             "budget_status": "within",
@@ -39,6 +40,10 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
                 "cache_efficiency": {
                     "cache_read_tokens": 9000,
                     "cache_write_tokens": 3500
+                },
+                "reload_cost": {
+                    "reload_tokens": 12500,
+                    "reload_pct": 93.6
                 }
             },
             "duration_seconds": 8.2,
@@ -74,9 +79,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
 |---|---|
 | `model` | Model used for this execution (e.g. `sonnet`, `flash`), or `null` if not specified. |
 | `effort` | Reasoning effort level used (`low`, `medium`, `high`), or `null` if not specified. |
-| `normalized_tokens` | Unified token usage, consistent regardless of agent. |
+| `normalized_tokens` | Unified token usage, consistent regardless of agent. Includes `reload_tokens` — the first-turn input token count representing context reload overhead. |
 | `budget_status` | Quick health check: `within`, `warning`, or `exceeded`. |
-| `budget_analysis` | Detailed breakdown with utilization percentage, remaining budget, and cache efficiency. See [TOKENS.md](TOKENS.md) for full budget analysis details. |
+| `budget_analysis` | Detailed breakdown with utilization percentage, remaining budget, cache efficiency, and reload cost. See [TOKENS.md](TOKENS.md) for full budget analysis details. |
 | `cost_usd` | Dollar cost (available from Claude Code; `null` for other agents). |
 | `diff` | Git diff of what the agent changed in the sandbox. |
 | `artifacts` | Map of filename to content for files the agent created or modified. |
@@ -203,4 +208,4 @@ The escalation report is defined and documented in [QUALITY_GATE.md](QUALITY_GAT
 
 ## Budget Analysis in Reports
 
-The `budget_analysis` block in each result entry provides a self-contained summary of token budget utilization, including a `cache_efficiency` sub-object that breaks out cache read and write tokens. For the full specification of budget tiers, normalized token accounting, and the warning/exceeded thresholds, see [TOKENS.md](TOKENS.md).
+The `budget_analysis` block in each result entry provides a self-contained summary of token budget utilization, including a `cache_efficiency` sub-object that breaks out cache read and write tokens, and a `reload_cost` sub-object that shows how much of the total token spend went to context setup (cold-start overhead). For the full specification of budget tiers, normalized token accounting, context reload cost tracking, and the warning/exceeded thresholds, see [TOKENS.md](TOKENS.md).

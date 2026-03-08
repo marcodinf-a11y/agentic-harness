@@ -16,7 +16,7 @@ Rein's context pressure monitor and budget analysis need a single consistent tok
 
 ## Decision
 
-A unified `NormalizedTokenUsage` frozen dataclass with four fields:
+A unified `NormalizedTokenUsage` frozen dataclass with five fields:
 
 | Field | Meaning |
 |-------|---------|
@@ -24,8 +24,9 @@ A unified `NormalizedTokenUsage` frozen dataclass with four fields:
 | `output_tokens` | Total output tokens |
 | `cache_read_tokens` | Tokens served from cache |
 | `cache_write_tokens` | Tokens written to cache (0 when agent doesn't report) |
+| `reload_tokens` | Context reload overhead — first-turn input tokens (subset of `input_tokens`, not additive) |
 
-`total_tokens` is computed in `__post_init__` as `input_tokens + output_tokens` — never from agent-reported "total" fields (Gemini's `total` includes `thoughts`, which would double-count).
+`total_tokens` is computed in `__post_init__` as `input_tokens + output_tokens` — never from agent-reported "total" fields (Gemini's `total` includes `thoughts`, which would double-count). `reload_tokens` does not affect budget math — it is a visibility counter for tracking cold-start overhead across sessions.
 
 Each adapter implements its own extraction logic:
 - Claude: sums `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
@@ -43,6 +44,7 @@ Each adapter implements its own extraction logic:
 
 **Negative:**
 
-- Normalization is lossy. Agent-specific fields that don't map to the four canonical fields are dropped (e.g., Gemini's `thoughts`, `tool` tokens). Raw output is preserved separately for debugging.
+- Normalization is lossy. Agent-specific fields that don't map to the five canonical fields are dropped (e.g., Gemini's `thoughts`, `tool` tokens). Raw output is preserved separately for debugging.
 - Cache semantics differ between agents (Claude's exclusive input vs. Codex's inclusive input). The normalization makes them look the same, but the underlying accounting differs. This is documented in TOKENS.md but could mislead operators comparing cache efficiency across agents.
 - `cache_write_tokens` is always 0 for Codex and Gemini (they don't report it). The field exists for Claude's benefit but carries no information for other agents.
+- `reload_tokens` measurement varies by agent: Claude and Codex provide real-time first-turn values, while Gemini only provides post-completion totals (upper bound). The asymmetry is documented in TOKENS.md.

@@ -225,7 +225,7 @@ The `run` method is `async` because all three CLIs are subprocess invocations th
 
 ## Token Normalization & Context Pressure Model
 
-Token normalization — the `NormalizedTokenUsage` dataclass, normalization rules, field mapping table, `BudgetStatus` enum, and `analyze_budget` function — is documented in [TOKENS.md](TOKENS.md). Per-agent token field mappings and adapter code are in [AGENTS.md](AGENTS.md).
+Token normalization — the `NormalizedTokenUsage` dataclass (including the `reload_tokens` field for context reload cost tracking), normalization rules, field mapping table, `BudgetStatus` enum, and `analyze_budget` function — is documented in [TOKENS.md](TOKENS.md). Per-agent token field mappings and adapter code are in [AGENTS.md](AGENTS.md).
 
 Context pressure data structures — `ContextPressure`, `ZoneConfig`, and the model context window lookup — are also defined in [TOKENS.md](TOKENS.md). The monitoring protocol and zone actions are in [SESSIONS.md — Context Pressure Monitoring](SESSIONS.md#context-pressure-monitoring).
 

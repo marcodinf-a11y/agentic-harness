@@ -357,6 +357,7 @@ No documented session resume mechanism.
 | Token naming | `input_tokens` / `output_tokens` | `input_tokens` / `output_tokens` | `prompt` / `candidates` |
 | Cache read | `cache_read_input_tokens` | `cached_input_tokens` | `cached` |
 | Cache write | `cache_creation_input_tokens` | Not reported | Not reported |
+| Reload tokens | First `message_start` `input_tokens` (real-time) | First `turn.completed` `input_tokens` (real-time) | `prompt` from final `result` (post-completion, upper bound) |
 | Cost reporting | `total_cost_usd` | Not reported | Not reported |
 | Session resume | `--resume <id>`, `--continue` | `resume <id>`, `resume --last` | Not available |
 | Auto-approve | `--dangerously-skip-permissions` | `--full-auto` | `--yolo` |

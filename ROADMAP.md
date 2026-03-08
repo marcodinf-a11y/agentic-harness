@@ -25,7 +25,7 @@ The initial release. One task, one agent, full lifecycle.
 - Bounded retry cap (default 4)
 - Defense-in-depth prompt instruction (context pressure awareness)
 - Deviation rules in task prompts
-- Context reload cost tracking
+- ~~Context reload cost tracking~~ → documented in [TOKENS.md](TOKENS.md#context-reload-cost), [ADR-010](docs/adr/ADR-010-normalized-token-usage.md)
 
 **Out of scope:** Codex/Gemini adapters, post-kill summary agent, parallel dispatch, YAML tasks, session resume, multi-run evaluation.
 

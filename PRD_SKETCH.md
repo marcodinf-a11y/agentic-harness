@@ -40,6 +40,8 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 | FR-013 | Seed files from task `files` field into sandbox (create directories as needed) | TASKS.md | `sandbox.py` |
 | FR-014 | Run `setup_commands` in sandbox after seeding | TASKS.md | `sandbox.py` |
 | FR-015 | Capture diff and artifacts before sandbox cleanup | ARCHITECTURE.md | `sandbox.py` |
+| FR-015a | Record baseline commit SHA at sandbox creation (before agent invocation). Tempdir: `git init && git add -A && git commit` after seeding/setup. Worktree/copy: capture `HEAD` SHA at creation time. Store as `baseline_sha` in run context | ARCHITECTURE.md | `sandbox.py` |
+| FR-015b | After agent finishes (before cleanup): `git diff <baseline_sha> HEAD` (full patch) and `git diff --stat <baseline_sha> HEAD` (summary). Store as `diff_patch` and `diff_stat` in report. Write patch to `results/{task_id}_{timestamp}.patch` | ARCHITECTURE.md | `sandbox.py`, `runner.py` |
 | FR-016 | Clean up sandbox after run (delete tempdir/copy, `git worktree remove` + branch delete for worktree) | ARCHITECTURE.md | `sandbox.py` |
 
 ### Agent Invocation

@@ -143,7 +143,7 @@ These env vars are set on the agent subprocess and reused by rein when running w
 
 If new agent CLIs introduce similar env var conflicts, add them to the adapter's scrub list and document them here.
 
-Artifacts and diffs are captured *before* the sandbox is cleaned up.
+Artifacts and diffs are captured *before* the sandbox is cleaned up. The diff baseline is a commit SHA pinned at sandbox creation time (`baseline_sha`) — not a branch name or HEAD reference, since the source repo may receive commits during the run. See FR-015a/FR-015b.
 
 #### Subprocess Termination Procedure
 
@@ -245,7 +245,7 @@ Context pressure data structures — `ContextPressure`, `ZoneConfig`, and the mo
    - Timeout → if wall-clock exceeds `timeout_seconds`, [Subprocess Termination Procedure](#subprocess-termination-procedure) (immediate); `termination_reason=timed_out`; proceed to Rein wrap-up (step 8a)
 8. Parse final or partial output from stream buffer; normalize tokens into unified model
    - 8a. *(If terminated by Rein — context pressure or timeout)* **Rein wrap-up:** commit uncommitted changes, write run log, update PROGRESS.md, log termination metrics. Optionally dispatch post-kill summary agent (yellow zone only — not dispatched for red zone or timeout).
-9. Capture diff and artifacts before sandbox cleanup
+9. Capture diff against `baseline_sha` (recorded at sandbox creation in step 2): `git diff <baseline_sha> HEAD` (full patch) and `git diff --stat <baseline_sha> HEAD` (summary). Write patch to `results/{task_id}_{timestamp}.patch`.
 10. Run validation commands in sandbox
 11. Generate evaluation result (including `ContextPressure` in report)
 12. **Extract learnings** — after final quality gate verdict, diff sandbox `LEARNINGS.md` against `.rein/LEARNINGS.md` in project root, validate new entries structurally, merge back. See [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md).

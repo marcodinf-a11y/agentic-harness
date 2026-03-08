@@ -49,7 +49,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
             "duration_seconds": 8.2,
             "cost_usd": 0.0399,
             "result_text": "...",
-            "diff": "diff --git a/fizzbuzz.py...",
+            "baseline_sha": "abc1234",
+            "diff_patch": "diff --git a/fizzbuzz.py...",
+            "diff_stat": "1 file changed, 15 insertions(+)",
             "artifacts": {
                 "fizzbuzz.py": "def main():\n..."
             },
@@ -83,7 +85,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
 | `budget_status` | Quick health check: `within`, `warning`, or `exceeded`. |
 | `budget_analysis` | Detailed breakdown with utilization percentage, remaining budget, cache efficiency, and reload cost. See [TOKENS.md](TOKENS.md) for full budget analysis details. |
 | `cost_usd` | Dollar cost (available from Claude Code; `null` for other agents). |
-| `diff` | Git diff of what the agent changed in the sandbox. |
+| `baseline_sha` | Commit SHA recorded at sandbox creation, before agent invocation. Diff baseline for all workspace types. |
+| `diff_patch` | Full unified diff (`git diff <baseline_sha> HEAD`). Also written to `results/{task_id}_{timestamp}.patch`. |
+| `diff_stat` | Summary (`git diff --stat <baseline_sha> HEAD`). Used in condensed failure narrative (FR-093c). |
 | `artifacts` | Map of filename to content for files the agent created or modified. |
 | `termination_reason` | Why the run ended: `completed` (normal), `timed_out` (wall-clock limit), `context_pressure` (zone kill), or `error` (adapter failure). |
 | `parse_error` | Exception message when NDJSON/JSONL parsing fails. `null` on success. When set, `normalized_tokens` is null and `result_text` is empty. |

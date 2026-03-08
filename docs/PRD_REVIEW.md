@@ -63,9 +63,20 @@ TASKS.md already defines `workspace.source` as a task-level field with JSON sche
 | FR-080a | `--source PATH` CLI flag: overrides `workspace.source` from task JSON. Allows running the same task definition against different repos without editing the JSON. Resolution: CLI `--source` > task `workspace.source`. | `cli.py` |
 | FR-011a | Default source to cwd: if `workspace.type` is `worktree` or `copy` and neither CLI `--source` nor task `workspace.source` is provided, default to the current working directory. Fail if cwd is not a git repo for worktree type. | `sandbox.py` |
 
-### G-5: No FR for diff capture mechanism
+### G-5: Diff capture mechanism — RESOLVED
 
-FR-015 says "capture diff and artifacts before sandbox cleanup" but doesn't specify: `git diff HEAD`? Against what baseline? What counts as an "artifact"?
+FR-015 lacked specifics on baseline, command, and output destination. Resolved with two new FRs.
+
+Artifacts defined as: (1) full unified diff patch, (2) diff stat summary, (3) final commit SHA. Baseline is a pinned commit SHA captured at sandbox creation — not a branch name or HEAD reference (source repo may receive commits during the run). For tempdir, an initial commit is created after file seeding and setup_commands to establish the baseline.
+
+Diff patch and stat go into the JSON report. Patch also written as a standalone `.patch` file in the results directory (survives sandbox cleanup for tempdir/copy). Condensed failure narrative (FR-093c) uses only the stat.
+
+#### Proposed FRs
+
+| ID | Requirement | Module |
+|----|-------------|--------|
+| FR-015a | Record baseline commit SHA at sandbox creation time (before agent invocation). For tempdir: `git init && git add -A && git commit` after file seeding and setup_commands. For worktree/copy: capture `HEAD` SHA at creation time. Store as `baseline_sha` in run context. | `sandbox.py` |
+| FR-015b | After agent finishes (before cleanup): run `git diff <baseline_sha> HEAD` for full patch and `git diff --stat <baseline_sha> HEAD` for summary. Store both in report as `diff_patch` and `diff_stat` fields. Write patch to `results/{task_id}_{timestamp}.patch`. | `sandbox.py`, `runner.py` |
 
 ---
 

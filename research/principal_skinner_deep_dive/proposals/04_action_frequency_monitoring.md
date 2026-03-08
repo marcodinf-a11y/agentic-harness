@@ -79,7 +79,6 @@ Action frequency monitoring is an **observability** mechanism, not an enforcemen
 This is a deliberate design choice. Principal Skinner proposes pre-execution blocking (behavioral circuit breakers). Rein uses sandbox containment instead — let the agent work freely within the sandbox, observe and report what it does, evaluate the output after. Blocking is an arms race (Sondera's known limitation); observation is complete.
 
 If action frequency flags are consistently triggered for a specific task or agent, the operator can:
-- Tighten the sandbox (e.g., add network isolation with `--unshare-net`)
 - Adjust the task prompt to constrain agent behavior
 - Switch to a different agent or model
 - Add a custom quality gate signal that fails on dangerous action patterns

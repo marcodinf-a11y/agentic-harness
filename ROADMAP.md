@@ -25,7 +25,6 @@ The initial release. One task, one agent, full lifecycle.
 - Bounded retry cap (default 4)
 - Defense-in-depth prompt instruction (context pressure awareness)
 - Deviation rules in task prompts
-- Network isolation flag (`--network-isolate`)
 - Context reload cost tracking
 
 **Out of scope:** Codex/Gemini adapters, post-kill summary agent, parallel dispatch, YAML tasks, session resume, multi-run evaluation.

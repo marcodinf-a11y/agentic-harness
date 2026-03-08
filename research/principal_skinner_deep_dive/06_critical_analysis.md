@@ -114,7 +114,7 @@ Rein monitors context pressure in real time and intervenes at thresholds. Princi
 
 Rein cannot prevent a dangerous action — only contain its blast radius and evaluate its output. If an agent within a sandbox exfiltrates data over the network, the sandbox does not prevent this (worktrees and tempdir copies provide filesystem isolation, not network isolation). Principal Skinner's tool-use interception could block network calls entirely.
 
-This is a real gap for agents with network access. Rein's existing sandboxing research (06_agent_sandboxing_isolation.md) identifies Firecracker microVMs and gVisor as solutions for process/network isolation, but these are not yet implemented.
+This is a real gap, but not one Rein can solve at the orchestrator level. Network isolation (e.g., `--unshare-net`) is not viable because the agent subprocess requires outbound HTTPS to the model API — all frontier models are cloud-hosted, so cutting the network kills the agent. Selective filtering (allowlisting API endpoints) is disproportionately complex for local dev use cases. Operators who need network restriction should use external tooling (firewalls, proxies, container network policies).
 
 ### 6.2 Threat Taxonomy
 
@@ -133,12 +133,12 @@ For systems running multiple agents that interact with each other or shared reso
 | Cross-session behavioral analysis | Not addressed | Not addressed | Neither tracks behavioral patterns across sessions/tasks |
 | Agent capability degradation | Not addressed | Not addressed | Neither detects when an agent's output quality declines over time |
 | Formal verification of safety | Claims "provable control" but provides no formal proof | No claims of formal verification | "Provable" is used loosely in the blog posts — no formal methods are applied |
-| Network isolation | Proposed via tool-use interception | Not implemented (worktrees are filesystem-only) | Both have a gap here; Rein's sandboxing research identifies solutions |
+| Network isolation | Proposed via tool-use interception | Out of scope (agent needs network for API calls; defer to external tooling) | Not viable at orchestrator level — agent requires outbound HTTPS to model API |
 | Supply chain attacks | Not addressed | Not addressed | Neither considers compromised tools, packages, or dependencies the agent installs |
 | Prompt injection from codebase | Not addressed | Partially addressed (sandbox limits scope, review agent provides second opinion) | An agent reading a malicious file in the repo could be influenced — neither system fully mitigates this |
 | Model-level alignment | Acknowledged but deferred ("deterministic controls override model behavior") | Acknowledged but deferred (review agent provides partial mitigation) | Both correctly identify this as out-of-scope for orchestration-level controls |
 
-The most significant shared gap is **network isolation**. Both systems assume filesystem containment is sufficient. For agents that can make HTTP requests, install packages, or access cloud APIs, filesystem isolation is necessary but not sufficient. Rein's sandboxing research identifies Firecracker microVMs as the solution (<125ms boot, <5MiB RAM overhead). Principal Skinner proposes tool-use interception of network calls, which is weaker (circumventable) but cheaper to implement.
+The data exfiltration gap remains real but is not solvable at the orchestrator level. Network isolation (e.g., `--unshare-net`) is not viable — the agent subprocess requires outbound HTTPS to the model API (all frontier models are cloud-hosted), so blanket network cuts kill the agent. Selective filtering (allowlisting API endpoints) adds disproportionate complexity. This is an infrastructure concern best handled by external tooling (firewalls, proxies, container network policies), not by Rein.
 
 ---
 

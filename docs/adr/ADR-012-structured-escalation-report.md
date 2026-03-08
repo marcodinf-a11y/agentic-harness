@@ -249,4 +249,4 @@ The `summary_agent_used` field in the report makes it clear which path produced 
 
 - The escalation report is a reporting enhancement, not an architectural change. It reads data that already flows through the round/signal model.
 - The `escalation.py` module follows the same pattern as `learnings.py` — a focused module with a clear interface called from `runner.py`.
-- The `[escalation]` config section in `rein.toml` follows the same pattern as other opt-in features (review agent, network isolation).
+- The `[escalation]` config section in `rein.toml` follows the same pattern as other opt-in features (review agent).

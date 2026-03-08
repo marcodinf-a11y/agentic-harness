@@ -123,15 +123,7 @@ Include concrete deviation rules in task prompts:
 
 **Cost:** Prompt template additions.
 
-### 9. Network Isolation Flag
-
-**Source:** Principal Skinner proposal 01
-
-Optional `--network-isolate` flag using bubblewrap `--unshare-net` or Docker `--network none`. Closes the data exfiltration gap — the strongest argument Principal Skinner makes against containment-only safety.
-
-**Cost:** One CLI flag, one subprocess argument.
-
-### 10. Context Reload Cost Tracking
+### 9. Context Reload Cost Tracking
 
 **Source:** Gas Town (03)
 
@@ -274,7 +266,7 @@ Confirmed across multiple independent sources. These are not "maybe later" — t
 | RLM | 11 (00-08 + 2) | — | Observation masking, multi-run evaluation, recursion avoidance |
 | Ralph Wiggum | 7 (00-06) | — | Context rotation validation, completion promise concept, failure modes |
 | Ralph Orchestrator | 6 (00-05) | 6 | Completion promise signal, LEARNINGS.md, stagnation detection, event stream |
-| Principal Skinner | 7 (00-06) | 5 | Agent git identity, network isolation, action frequency, OWASP mapping |
+| Principal Skinner | 7 (00-06) | 5 | Agent git identity, action frequency, OWASP mapping |
 | Gas Town | 6 (00-05) | 6 | Crash-recoverable state, spec validation, merge queue, reload cost |
 | GSD | 6 (00-05) | 5 | Orchestrator budget ceiling, size-capped state, deviation rules, wave execution |
 | Landscape | 12 (01-12) | — | Context degradation evidence, sandbox tiers, eval benchmarks, tracing tools |

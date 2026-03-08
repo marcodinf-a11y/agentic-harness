@@ -82,7 +82,7 @@ The round mechanism is itself a circuit breaker. If the agent fails validation t
 The sandbox-as-circuit-breaker model has gaps:
 
 ### 4.1 Data Exfiltration
-The agent can read sensitive files in the sandbox and send them externally via `curl`, `wget`, or language-level HTTP calls. Sandbox isolation protects the filesystem; it does not protect data confidentiality. A behavioral circuit breaker monitoring outbound network calls would catch this. (Alternatively, network isolation closes the gap — see 02_tool_use_control.md.)
+The agent can read sensitive files in the sandbox and send them externally via `curl`, `wget`, or language-level HTTP calls. Sandbox isolation protects the filesystem; it does not protect data confidentiality. A behavioral circuit breaker monitoring outbound network calls would catch this. Note: network isolation (e.g., `--unshare-net`) is not viable for Rein because the agent subprocess requires outbound HTTPS to the model API — cutting the network kills the agent itself. Selective network filtering (allowlisting API endpoints) is possible but the complexity is disproportionate to the value for local dev use cases; external tooling (firewall rules, proxy configuration) is better suited.
 
 ### 4.2 Resource Exhaustion
 The agent can fork-bomb, fill disk, or consume all available memory inside the sandbox. Zone-based intervention catches context-window exhaustion but not OS-level resource exhaustion. A process-level circuit breaker (cgroups, ulimit) would be more appropriate here than an application-level behavioral monitor.
@@ -136,7 +136,7 @@ Rein's planned stagnation detection (from the ralph-orchestrator deep dive recom
 |---------------------|--------------------|--------------------|---------|
 | Stagnation detection (progress-based) | Low — track failure patterns across sessions | High — catches infinite loops, oscillation, overbaking | **Add** (already planned) |
 | Action-content monitoring (command signatures) | High — policy rules, bypass testing, maintenance | Low over sandbox containment for local dev | **Skip** — defer to Claude Code hooks |
-| Network call monitoring | Medium — intercept outbound connections | High for enterprise, low for local dev | **Consider** — network isolation (`--unshare-net`) is simpler |
+| Network call monitoring | Medium — intercept outbound connections | High for enterprise, low for local dev | **Skip** — not viable (agent needs network for API calls); defer to external tooling |
 | Resource exhaustion limits | Low — cgroups/ulimit | Medium — catches fork bombs, disk fill | **Consider** — OS-level, not application-level |
 
 ---
@@ -147,9 +147,7 @@ Rein's planned stagnation detection (from the ralph-orchestrator deep dive recom
 
 **Next:** Implement stagnation detection (progress-based circuit breaker) as already planned from the ralph-orchestrator deep dive. This addresses the "overbaking" and "oscillation" failure modes that Principal Skinner identifies without requiring action-content analysis.
 
-**Next:** Add optional network isolation (`--unshare-net` / `--network none`) to the sandbox. This closes the data exfiltration gap that is the strongest argument for behavioral circuit breakers.
-
-**Never:** Build action-content circuit breakers (command signature monitoring) into rein. This is Sondera/OpenClaw's domain. Rein's value is in orchestration and evaluation, not in security policy enforcement. Claude Code's PreToolUse hooks already provide this interception point for users who want it.
+**Never:** Build action-content circuit breakers (command signature monitoring) or network isolation into rein. Network isolation is not viable — the agent subprocess requires outbound HTTPS to the model API, so blanket network cuts kill the agent. Selective filtering (allowlisting API endpoints) is disproportionately complex for the value; external tooling (firewalls, proxies) handles this better. Action-content monitoring is Sondera/OpenClaw's domain. Rein's value is in orchestration and evaluation, not in security policy enforcement. Claude Code's PreToolUse hooks already provide this interception point for users who want it.
 
 ---
 

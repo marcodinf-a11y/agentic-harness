@@ -67,8 +67,8 @@ Rein and Principal Skinner approach the same problem from opposite directions:
 | **Implementation complexity** | High — maintain policy rules, handle edge cases | Low — use OS-level isolation (worktree, bubblewrap) |
 | **Agent capability** | Reduced — blocked commands are unavailable | Full — agent has unrestricted access within the sandbox |
 | **Blast radius** | Unbounded for commands that pass the filter | Bounded to the sandbox (worktree/tempdir/copy) |
-| **Data exfiltration** | Can block known patterns (credential file reads) | Not prevented unless sandbox has network isolation |
-| **Network access** | Can block specific URLs/endpoints | Not restricted by default |
+| **Data exfiltration** | Can block known patterns (credential file reads) | Not prevented (agent needs network for API calls) |
+| **Network access** | Can block specific URLs/endpoints | Not restricted (agent needs network for API calls; external tooling can filter) |
 
 **Rein's containment model is simpler and harder to bypass.** The agent operates in a worktree or tempdir. Even if it runs `rm -rf /`, it destroys the sandbox, not the main working tree. Rein captures diffs and artifacts before cleanup. The blast radius is bounded by construction, not by policy completeness.
 
@@ -112,7 +112,7 @@ The cost-benefit analysis:
 
 **For enterprise/multi-tenant:** Tool-use interception becomes more important, but this should be handled by the deployment platform (Firecracker, gVisor, Docker with seccomp profiles), not by rein itself. Rein is an orchestrator, not a security boundary.
 
-**The one exception:** If rein adds network isolation to its sandbox model (blocking outbound network from agent subprocesses), it closes the data exfiltration gap without needing command-level interception. This is a single configuration change (bubblewrap `--unshare-net` or Docker `--network none`), not a policy engine.
+**Note on network isolation:** Network isolation (e.g., `--unshare-net`) is not viable for Rein. The agent subprocess requires outbound HTTPS to the model API — all frontier models are cloud-hosted. Cutting the network kills the agent. Selective filtering (allowlisting API endpoints only) is possible but disproportionately complex for local dev; external tooling (firewalls, proxies) is better suited for operators who need this.
 
 ---
 
@@ -124,7 +124,7 @@ The cost-benefit analysis:
 | Post-execution evaluation | Not discussed | POST_TOOL redaction | Quality gate | No |
 | Sandbox isolation | Not discussed | Not discussed | Worktree/tempdir/copy | bubblewrap/Seatbelt |
 | Subprocess control | Not discussed | Not discussed | SIGTERM/SIGKILL zones | Process management |
-| Network isolation | Not discussed | Not discussed | Not yet (easy to add) | Sandbox-dependent |
+| Network isolation | Not discussed | Not discussed | Out of scope (agent needs network for API) | Sandbox-dependent |
 | Policy language | Conceptual | Cedar (AWS) | N/A | Permission YAML |
 | Bypass resistance | Unknown | Low (signature-based) | High (OS-level sandbox) | High (syscall filtering) |
 
@@ -134,9 +134,7 @@ The cost-benefit analysis:
 
 **Now:** Document that Claude Code hooks (PreToolUse) provide the interception point Principal Skinner describes, making custom interception unnecessary for rein.
 
-**Next:** Add `--unshare-net` (bubblewrap) or `--network none` (Docker) as an optional sandbox flag to close the data exfiltration gap. This is one line of configuration, not a policy engine.
-
-**Never:** Build a custom policy language or maintain command blocklists. This is Sondera's job, not Rein's. Rein's value is in orchestration (context pressure, quality gates, structured evaluation), not in security policy enforcement.
+**Never:** Build network isolation or a custom policy language or maintain command blocklists. Network isolation is not viable (agent needs network for API calls); selective filtering belongs to external tooling. Policy engines are Sondera's job, not Rein's. Rein's value is in orchestration (context pressure, quality gates, structured evaluation), not in security policy enforcement.
 
 ---
 

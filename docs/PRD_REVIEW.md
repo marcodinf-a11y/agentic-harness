@@ -94,9 +94,9 @@ FR-060 now runs unconditionally on any termination reason (defense-in-depth). Ch
 
 Added R1 scope note to FR-047 in PRD_SKETCH.md. The general rule (per-agent signal) is correct and stays — just annotated that R1 ships Claude only (SIGTERM).
 
-### I-4: FR-091 / FR-091a sub-ID numbering
+### I-4: FR-091 / FR-091a sub-ID numbering — CLOSED (no longer applicable)
 
-Using sub-IDs mid-table breaks the clean numbering scheme. Consider making FR-091 (injection) and FR-091a (extraction) into two full IDs, renumbering downstream.
+Sub-IDs are now the established convention across the PRD (FR-011a, FR-015a/b, FR-080a, FR-085a/b/c, FR-093a/b/c/d, FR-094a/b). FR-091a is consistent, not anomalous.
 
 ---
 

@@ -103,7 +103,7 @@ Scope boundaries:
 - Do not delete or rename existing tests unless the task explicitly asks for it.
 
 Guard rails:
-- If a fix attempt fails 3 times, document the issue in PROGRESS.md and move on.
+- If a fix attempt fails 3 times, log the issue in DEFERRED.md and move on.
 - If you are unsure whether a change is in scope, err on the side of not making it.
 ```
 
@@ -175,7 +175,7 @@ Scope boundaries:
 - Do not delete or rename existing tests unless the task explicitly asks for it.
 
 Guard rails:
-- If a fix attempt fails 3 times, document the issue in PROGRESS.md and move on.
+- If a fix attempt fails 3 times, log the issue in DEFERRED.md and move on.
 - If you are unsure whether a change is in scope, err on the side of not making it.
 {extra_constraints}
 

@@ -71,12 +71,17 @@ Operational instructions that ensure work is persisted incrementally. These prot
 ```
 ## Work Protocol
 
-- Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit.
+- Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit. Stage files individually — never use `git add .` or `git add -A`.
 - After each commit, update PROGRESS.md with what was completed and what remains.
 - If LEARNINGS.md exists, read it before starting. If you discover reusable insights (gotchas, patterns, constraints), append them — keep the file under 80 lines.
+- If you encounter pre-existing issues unrelated to this task, log them in DEFERRED.md (one line per issue: file path, description) but do not fix them.
 ```
 
-**Why not more instructions?** Each additional instruction competes for the agent's attention. Three clear rules are better than ten diluted ones. The "commit frequently" and "update PROGRESS.md" instructions are the highest-value defense-in-depth measures identified in the research deep dives.
+**Why these rules?** Each instruction protects against a specific failure mode observed in practice:
+- **Commit frequently + stage individually:** Ensures the wrap-up protocol only captures the last delta, and prevents accidental commits of generated files, secrets, or sandbox artifacts (adapted from GSD's commit protocol: "NEVER `git add .`").
+- **Update PROGRESS.md:** Creates a human-readable record of progress that survives agent termination.
+- **LEARNINGS.md:** Carries operational knowledge across sessions (capped at 80 lines to prevent unbounded growth — validated by GSD's STATE.md size constraint).
+- **DEFERRED.md:** Prevents scope creep while preserving signal. Without an explicit log target, agents either fix pre-existing issues (scope creep) or silently ignore them (lost signal). Adapted from GSD's `deferred-items.md` pattern.
 
 ### 4. Deviation Rules (FR-095)
 
@@ -94,7 +99,7 @@ Automatic fixes (no permission needed):
 
 Scope boundaries:
 - Do not modify files outside the scope of this task unless required to make the code compile or tests pass.
-- Do not fix pre-existing issues unrelated to this task. If you find them, note them in PROGRESS.md under "Pre-existing issues" but do not fix them.
+- Do not fix pre-existing issues unrelated to this task. Log them in DEFERRED.md instead.
 - Do not delete or rename existing tests unless the task explicitly asks for it.
 
 Guard rails:
@@ -115,12 +120,17 @@ class TaskDefinition:
 
 ### 5. Completion Signal (FR-090)
 
-Instructions for the agent to signal when it believes the task is complete:
+Instructions for the agent to verify its work and signal when the task is complete. The self-check step is adapted from GSD's executor protocol, which requires agents to verify their own claims before declaring success.
 
 ```
 ## Completion
 
-When you believe the task is complete, create the file .rein/complete to signal completion.
+Before signaling completion, verify your work:
+1. Confirm that files you created or modified exist and are non-empty.
+2. Run any tests or checks relevant to your changes.
+3. Review PROGRESS.md — does it accurately reflect what was done?
+
+When verified, create the file .rein/complete to signal completion.
 ```
 
 Rein cross-references this marker with validation results:
@@ -147,9 +157,10 @@ Task ID: {task.id}
 
 ## Work Protocol
 
-- Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit.
+- Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit. Stage files individually — never use `git add .` or `git add -A`.
 - After each commit, update PROGRESS.md with what was completed and what remains.
 - If LEARNINGS.md exists, read it before starting. If you discover reusable insights (gotchas, patterns, constraints), append them — keep the file under 80 lines.
+- If you encounter pre-existing issues unrelated to this task, log them in DEFERRED.md (one line per issue: file path, description) but do not fix them.
 
 ## Constraints
 
@@ -160,7 +171,7 @@ Automatic fixes (no permission needed):
 
 Scope boundaries:
 - Do not modify files outside the scope of this task unless required to make the code compile or tests pass.
-- Do not fix pre-existing issues unrelated to this task. If you find them, note them in PROGRESS.md under "Pre-existing issues" but do not fix them.
+- Do not fix pre-existing issues unrelated to this task. Log them in DEFERRED.md instead.
 - Do not delete or rename existing tests unless the task explicitly asks for it.
 
 Guard rails:
@@ -170,7 +181,12 @@ Guard rails:
 
 ## Completion
 
-When you believe the task is complete, create the file .rein/complete to signal completion.
+Before signaling completion, verify your work:
+1. Confirm that files you created or modified exist and are non-empty.
+2. Run any tests or checks relevant to your changes.
+3. Review PROGRESS.md — does it accurately reflect what was done?
+
+When verified, create the file .rein/complete to signal completion.
 ```
 
 Where `{extra_constraints}` is the task's `constraints` field, each prefixed with `- `.
@@ -253,6 +269,7 @@ The prompt references files that Rein seeds into the sandbox:
 |---|---|---|---|
 | `LEARNINGS.md` | `sandbox.py` (FR-091) | Empty or seed content from config | Work Protocol |
 | `PROGRESS.md` | `sandbox.py` | Empty, agent writes to it | Work Protocol |
+| `DEFERRED.md` | `sandbox.py` | Empty, agent writes to it | Work Protocol, Constraints |
 | `.rein/` | `sandbox.py` | Directory created for completion signal | Completion |
 
 These files are seeded *in addition to* the task's `files` field. The task author doesn't need to include them — Rein handles it.
@@ -266,13 +283,13 @@ Approximate token counts for each section (measured with `tiktoken` o200k_base):
 | Section | Tokens |
 |---|---|
 | Preamble | ~40 |
-| Work Protocol | ~80 |
+| Work Protocol | ~110 |
 | Deviation Rules (default) | ~150 |
-| Completion Signal | ~25 |
+| Completion Signal | ~60 |
 | Separators and formatting | ~15 |
-| **Total Rein overhead** | **~310** |
+| **Total Rein overhead** | **~375** |
 
-With per-task constraints adding ~15 tokens each. Against a 70k budget, this is ~0.4% overhead.
+With per-task constraints adding ~15 tokens each. Against a 70k budget, this is ~0.5% overhead.
 
 ---
 

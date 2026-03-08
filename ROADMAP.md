@@ -22,7 +22,7 @@ The initial release. One task, one agent, full lifecycle.
 - ~~LEARNINGS.md seed file with 80-line cap~~ → documented in [ARCHITECTURE.md](ARCHITECTURE.md#learningsmd-injection-and-extraction), [PROMPTS.md](PROMPTS.md#3-work-protocol-defense-in-depth--fr-094), [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)
 - ~~Structured escalation report on failure~~ → documented in [QUALITY_GATE.md](QUALITY_GATE.md#escalation-report), [REPORTS.md](REPORTS.md#escalation-report), [ADR-012](docs/adr/ADR-012-structured-escalation-report.md)
 - ~~Pre-dispatch specification validation~~ → documented in [TASKS.md](TASKS.md#pre-dispatch-specification-validation), [ADR-013](docs/adr/ADR-013-pre-dispatch-specification-validation.md)
-- Bounded retry cap (default 2)
+- Bounded retry cap (default 4)
 - Defense-in-depth prompt instruction (context pressure awareness)
 - Deviation rules in task prompts
 - Network isolation flag (`--network-isolate`)

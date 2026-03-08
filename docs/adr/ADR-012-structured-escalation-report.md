@@ -41,8 +41,8 @@ The `escalation_report` field is a sibling to `final_verdict` in the top-level r
 {
     "escalation_report": {
         "task_summary": "Refactor auth module to use JWT",
-        "rounds_attempted": 2,
-        "max_rounds": 2,
+        "rounds_attempted": 4,
+        "max_rounds": 4,
 
         "round_history": [
             {

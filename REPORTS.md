@@ -153,8 +153,8 @@ The escalation report is defined and documented in [QUALITY_GATE.md](QUALITY_GAT
 {
     "escalation_report": {
         "task_summary": "Refactor auth module to use JWT",
-        "rounds_attempted": 2,
-        "max_rounds": 2,
+        "rounds_attempted": 4,
+        "max_rounds": 4,
         "round_history": [
             {
                 "round_number": 1,

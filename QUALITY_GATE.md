@@ -11,7 +11,7 @@ The quality gate and pipeline design is closely modeled on Stripe's **Minions** 
 | Stripe Pattern | Rein Equivalent |
 |----------------|-------------------|
 | **Blueprint pattern**: deterministic nodes (checkout, lint, test) + open-ended agent loops (coding) | Quality gate signals are the deterministic nodes; the agent run is the open-ended loop |
-| **Max 2 CI rounds per task** | Configurable `max_rounds` (default: 2) with structured feedback between rounds |
+| **Bounded retry rounds per task** | Configurable `max_rounds` (default: 4) with structured feedback between rounds |
 | **Pre-warmed devboxes** (10s spin-up) | Sandbox isolation (worktree/tempdir/copy) with setup commands |
 | **Pull requests as approval gates** | Quality gate verdict controls acceptance; review agent provides the approval signal |
 | **Isolated from production/internet** | Sandbox with configurable network and filesystem restrictions |
@@ -90,7 +90,7 @@ model = "sonnet"
 effort = "high"
 token_budget = 70000
 timeout_seconds = 300
-max_rounds = 2
+max_rounds = 4
 
 # ── Specification Validation ──────────────────────
 # Pre-dispatch checks on task definitions. See ADR-013.
@@ -500,7 +500,7 @@ Fix these issues. The code is already in the working directory from your previou
 - The **sandbox persists** across rounds — code from previous rounds is present
 - Each round has its own **token budget** and **timeout** (from rein.toml defaults or task definition)
 - The review agent runs fresh in each round — it does not carry context from previous reviews
-- `max_rounds` is configurable (default: 2). Setting `max_rounds = 1` disables retries.
+- `max_rounds` is configurable (default: 4). Setting `max_rounds = 1` disables retries.
 - **Learnings extraction happens once** after the final verdict (pass, warn, or fail), not after each round. This ensures only the final sandbox state — which reflects the cumulative work of all rounds — is persisted to `.rein/LEARNINGS.md`. See [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md).
 
 ---
@@ -566,7 +566,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
     },
     "config": {
         "rein_toml": "rein.toml",
-        "max_rounds": 2,
+        "max_rounds": 4,
         "quality_gate_enabled": true,
         "signals_enabled": ["build", "tests", "lint", "context_pressure", "review"]
     },

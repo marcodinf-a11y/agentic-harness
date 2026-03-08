@@ -40,9 +40,17 @@ Resolved via [ADR-015](adr/ADR-015-progress-deferred-sandbox-seeding.md). Both f
 | FR-094a | Seed PROGRESS.md with section template (Completed / In Progress / Blocked) and 100-line advisory cap at sandbox setup. On carry-forward retry (FR-093b), keep as-is. On fresh retry, reset to template. | `sandbox.py` |
 | FR-094b | Seed DEFERRED.md with header template at sandbox setup. On carry-forward retry (FR-093b), keep as-is. On fresh retry, reset to template. No size cap. | `sandbox.py` |
 
-### G-3: No FR for config file parsing
+### G-3: Config file parsing and schema — RESOLVED
 
-FR-085/086 describe the two-layer config and resolution order, but no FR covers actually parsing the config file. The format is also inconsistent (see I-1).
+FR-085/086 describe the two-layer config and resolution order, but no FR covers parsing or the full schema. Format mismatch (I-1) resolved: `rein.toml` everywhere.
+
+#### Proposed FRs
+
+| ID | Requirement | Module |
+|----|-------------|--------|
+| FR-085a | Parse `rein.toml` using stdlib `tomllib`. Two locations: global `~/.config/rein/rein.toml`, project `.rein/rein.toml`. Optional `--config` CLI flag overrides project path. Missing file is not an error — use defaults. Malformed TOML fails immediately with parse error and file path. Unknown keys are silently ignored (forward compatibility). | `config.py` |
+| FR-085b | Config schema with sections: `[project]` (name), `[defaults]` (agent, model, effort, token_budget, timeout_seconds, max_rounds), `[spec_validation]` (mode, min_prompt_length, require_validation_commands), `[context_pressure]` (green_max_pct, yellow_max_pct, per-model overrides), `[models]` (per-model context_window), `[prompt_assembly]` (include_preamble, include_work_protocol, include_deviation_rules, include_completion_signal), `[escalation]` (summary_agent, summary_model, summary_token_budget, summary_timeout_seconds), `[quality_gate.*]` (per-signal: enabled, required, commands; plus signal-specific keys). Full schema documented in QUALITY_GATE.md. | `config.py` |
+| FR-085c | Resolution order: CLI flags > project `.rein/rein.toml` > global `~/.config/rein/rein.toml` > built-in defaults. For agent/model/effort: task field > CLI flag > config > defaults. | `config.py` |
 
 ### G-4: No FR for workspace source path
 
@@ -56,13 +64,9 @@ FR-015 says "capture diff and artifacts before sandbox cleanup" but doesn't spec
 
 ## Inconsistencies
 
-### I-1: Config format mismatch
+### I-1: Config format mismatch — RESOLVED
 
-- FR-085/086: `config.yaml`
-- FR-095/098: `rein.toml`
-- MEMORY.md: `rein.toml`
-
-Pick one and use it everywhere. Recommend `rein.toml`.
+Resolved in G-3. Format is `rein.toml` everywhere. FR-085/086 in PRD_SKETCH.md updated.
 
 ### I-2: FR-060 scope ambiguity
 

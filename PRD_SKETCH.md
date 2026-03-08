@@ -142,10 +142,12 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 
 | ID | Requirement | Source | Module |
 |----|-------------|--------|--------|
-| FR-085 | Two-layer config: global `~/.config/rein/config.yaml` + project `.rein/config.yaml` | MEMORY.md | `config.py` |
-| FR-086 | Resolution order: CLI flags > project config > global config > defaults | MEMORY.md | `config.py` |
-| FR-087 | Model context window lookup from config (required for Codex/Gemini) | TOKENS.md | `config.py` |
-| FR-088 | Zone threshold configuration: global defaults + per-model overrides | SESSIONS.md | `config.py` |
+| FR-085 | Two-layer config: global `~/.config/rein/rein.toml` + project `.rein/rein.toml`. Optional `--config` CLI flag overrides project path | MEMORY.md | `config.py` |
+| FR-085a | Parse `rein.toml` using stdlib `tomllib`. Missing file uses defaults silently. Malformed TOML fails immediately with parse error and file path. Unknown keys silently ignored (forward compatibility) | QUALITY_GATE.md | `config.py` |
+| FR-085b | Config schema: `[project]`, `[defaults]`, `[spec_validation]`, `[context_pressure]`, `[models]`, `[prompt_assembly]`, `[escalation]`, `[quality_gate.*]`. Full schema in QUALITY_GATE.md | QUALITY_GATE.md | `config.py` |
+| FR-085c | Resolution order: CLI flags > project `.rein/rein.toml` > global `~/.config/rein/rein.toml` > built-in defaults. For agent/model/effort: task field > CLI flag > config > defaults | MEMORY.md | `config.py` |
+| FR-087 | Model context window lookup from `[models]` config section (required for Codex/Gemini) | TOKENS.md | `config.py` |
+| FR-088 | Zone threshold configuration via `[context_pressure]`: global defaults + per-model overrides in `[context_pressure.overrides]` | SESSIONS.md | `config.py` |
 
 ### Release 1 Research Adoptions
 

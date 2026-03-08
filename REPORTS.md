@@ -170,6 +170,11 @@ The escalation report is defined and documented in [QUALITY_GATE.md](QUALITY_GAT
                 "passing_signals": ["build", "lint", "context_pressure", "diff_size"]
             }
         ],
+        "escalation_trigger": "max_rounds_exhausted",
+        "completion_confidence": "overconfident",
+        "learnings_snapshot": [
+            "- test: `pytest tests/ --test-threads=1` (DB tests not parallelizable)"
+        ],
         "diagnostic_summary": "Agent resolved 1 of 2 test failures across 2 rounds. Remaining: test_edge_case. Progress: improved.",
         "preserved_state": {
             "branch": "rein/refactor-auth-001-20260306",
@@ -187,6 +192,9 @@ The escalation report is defined and documented in [QUALITY_GATE.md](QUALITY_GAT
 | `rounds_attempted` / `max_rounds` | How many rounds ran vs. the configured limit |
 | `round_history[]` | Per-round failure narrative with failing/passing signals |
 | `round_history[].output_excerpt` | First 30 lines from failure marker, or last 30 lines. Full output in `rounds[].evaluation.validation_output` |
+| `escalation_trigger` | Why escalation happened: `max_rounds_exhausted`, `context_pressure`, `timed_out`, or `error` |
+| `completion_confidence` | Final round's completion promise cross-reference ([ADR-002](docs/adr/ADR-002-completion-promise-signal.md)): `overconfident` (agent claimed done, validation failed) or `incomplete` (agent didn't claim done) |
+| `learnings_snapshot` | Operational facts extracted from sandbox LEARNINGS.md ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)) — context for the human picking up the work |
 | `diagnostic_summary` | Overall assessment with progress classification (`improved` / `stagnated` / `regressed`) |
 | `preserved_state` | Branch, commit SHA, diff stat — where to find the agent's work. `branch` is `null` for tempdir workspaces |
 | `summary_agent_used` | Whether opt-in LLM enrichment was used (configurable via `[escalation]` in `rein.toml`) |

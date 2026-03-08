@@ -16,6 +16,11 @@ The existing report answers these questions, but spread across nested `rounds[]`
 
 This pattern is adopted from Stripe's Minions system, where failed tasks escalate to humans with context about what was attempted and what failed, preserving the agent's branch and changes rather than discarding them.
 
+Additional patterns from research deep dives informed the schema:
+- **Principal Skinner** (circuit breakers): distinguishing *why* escalation happened — financial limits (max rounds, budget) vs. behavioral limits (context pressure, stagnation)
+- **Ralph Orchestrator** (completion promise + stagnation detection): cross-referencing the agent's self-assessment with validation results to classify failure confidence
+- **Ralph Orchestrator** (knowledge persistence): surfacing operational facts the agent discovered during its failed run as context for the human
+
 ### Options considered
 
 **Option A — Mechanical summary only.** Rein generates the escalation report deterministically from signal data. Template-driven: "Round 1: tests failed (2/5), review requested changes. Round 2: tests failed (1/5), review approved." Zero additional token cost. Zero failure modes.
@@ -75,6 +80,15 @@ The `escalation_report` field is a sibling to `final_verdict` in the top-level r
 
         "diagnostic_summary": "Agent resolved 1 of 2 test failures across 2 rounds. Remaining failure: test_edge_case (role escalation logic). Progress: improved.",
 
+        "escalation_trigger": "max_rounds_exhausted",
+
+        "completion_confidence": "overconfident",
+
+        "learnings_snapshot": [
+            "- test: `pytest tests/ --test-threads=1` (DB tests not parallelizable)",
+            "- quirk: auth module uses custom JWT, not the jsonwebtoken crate"
+        ],
+
         "preserved_state": {
             "branch": "rein/refactor-auth-001-20260306",
             "last_commit": "a1b2c3d",
@@ -101,6 +115,9 @@ The `escalation_report` field is a sibling to `final_verdict` in the top-level r
 | `round_history[].failing_signals[].output_excerpt` | Last 30 lines of relevant output after the first failure marker, or last 30 lines if no marker found. `null` for signals without command output (e.g., review, context_pressure). Full output remains in `rounds[].evaluation.validation_output`. |
 | `round_history[].passing_signals` | List of signal names that passed — keeps the report scannable without listing full details for successes. |
 | `diagnostic_summary` | Overall assessment. Mechanical: "Resolved X of Y failures across N rounds. Remaining: {list}. Progress: improved/stagnated/regressed." LLM-enriched if summary agent enabled. |
+| `escalation_trigger` | Why escalation happened. One of: `max_rounds_exhausted` (normal case — all rounds ran, all failed), `context_pressure` (every round was killed by zone pressure), `timed_out` (every round hit the wall-clock limit), `error` (agent crashed every round). Derived from `termination_reason` of the final round, but surfaced explicitly so the operator doesn't have to dig through round history. Informed by Principal Skinner's circuit breaker taxonomy (financial vs. behavioral limits). |
+| `completion_confidence` | From the final round's completion promise cross-reference ([ADR-002](docs/adr/ADR-002-completion-promise-signal.md)). One of: `overconfident` (agent claimed done but validation failed — the code is wrong in a way the agent can't see), `incomplete` (agent didn't claim done — it knew it wasn't finished), `suspicious` (validation passed but agent didn't signal — shouldn't appear in escalation since verdict would be pass), `confident` (shouldn't appear — would mean pass). Informed by Ralph Orchestrator's completion promise + required-events validation pattern. |
+| `learnings_snapshot` | New entries from LEARNINGS.md that were extracted from the sandbox during this session ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)). These are operational facts the agent discovered during its failed run (build commands, test quirks, environment requirements) that provide context for the human picking up the work. Empty list if no learnings were extracted. Informed by Ralph Orchestrator's knowledge persistence pattern. |
 | `preserved_state.branch` | Git branch with the agent's work, if available. `null` for tempdir workspaces where the sandbox is deleted. |
 | `preserved_state.last_commit` | Short SHA of the last commit in the branch. |
 | `preserved_state.diff_stat` | `git diff --stat` summary of total changes. |
@@ -176,10 +193,13 @@ After final verdict == "fail":
 1. Collect round history from rounds[] data
 2. For each round: extract failing/passing signals, compute approach_summary
 3. Compute diagnostic_summary (progress classification)
-4. Capture preserved_state (branch, commit, diff_stat)
-5. If summary_agent enabled: dispatch summary agent for enrichment
-6. On summary agent failure: fall back to mechanical, log warning
-7. Attach escalation_report to report JSON
+4. Derive escalation_trigger from final round's termination_reason
+5. Read completion_confidence from final round's evaluation
+6. Snapshot learnings extracted in step 7 of session lifecycle (ADR-011)
+7. Capture preserved_state (branch, commit, diff_stat)
+8. If summary_agent enabled: dispatch summary agent for enrichment
+9. On summary agent failure: fall back to mechanical, log warning
+10. Attach escalation_report to report JSON
 ```
 
 ### Code location

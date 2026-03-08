@@ -72,14 +72,14 @@ Operational instructions that ensure work is persisted incrementally. These prot
 ## Work Protocol
 
 - Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit. Stage files individually — never use `git add .` or `git add -A`.
-- After each commit, update PROGRESS.md with what was completed and what remains.
+- After each commit, update PROGRESS.md with what was completed and what remains. Keep it under 100 lines — summarize, don't narrate.
 - If LEARNINGS.md exists, read it before starting. If you discover reusable insights (gotchas, patterns, constraints), append them — one line per fact, keep the file under 80 lines. Prefix entries with a category: `build:`, `test:`, `lint:`, `env:`, `convention:`, `quirk:`.
 - If you encounter pre-existing issues unrelated to this task, log them in DEFERRED.md (one line per issue: file path, description) but do not fix them.
 ```
 
 **Why these rules?** Each instruction protects against a specific failure mode observed in practice:
 - **Commit frequently + stage individually:** Ensures the wrap-up protocol only captures the last delta, and prevents accidental commits of generated files, secrets, or sandbox artifacts (adapted from GSD's commit protocol: "NEVER `git add .`").
-- **Update PROGRESS.md:** Creates a human-readable record of progress that survives agent termination.
+- **Update PROGRESS.md:** Creates a human-readable record of progress that survives agent termination. Capped at 100 lines to prevent the file from becoming a context pressure source ([ADR-015](docs/adr/ADR-015-progress-deferred-sandbox-seeding.md)).
 - **LEARNINGS.md:** Carries operational knowledge across sessions. Capped at 80 lines to prevent unbounded growth (validated by GSD's STATE.md size constraint). Category prefixes (`build:`, `test:`, etc.) make the file scannable for operators and future sessions. Each entry must be a single line ≤ 200 characters — rein validates this structurally during post-session extraction (see [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)).
 - **DEFERRED.md:** Prevents scope creep while preserving signal. Without an explicit log target, agents either fix pre-existing issues (scope creep) or silently ignore them (lost signal). Adapted from GSD's `deferred-items.md` pattern.
 
@@ -158,7 +158,7 @@ Task ID: {task.id}
 ## Work Protocol
 
 - Commit after each meaningful change with a descriptive message. Do not batch all changes into a single final commit. Stage files individually — never use `git add .` or `git add -A`.
-- After each commit, update PROGRESS.md with what was completed and what remains.
+- After each commit, update PROGRESS.md with what was completed and what remains. Keep it under 100 lines — summarize, don't narrate.
 - If LEARNINGS.md exists, read it before starting. If you discover reusable insights (gotchas, patterns, constraints), append them — one line per fact, keep the file under 80 lines. Prefix entries with a category: `build:`, `test:`, `lint:`, `env:`, `convention:`, `quirk:`.
 - If you encounter pre-existing issues unrelated to this task, log them in DEFERRED.md (one line per issue: file path, description) but do not fix them.
 
@@ -268,8 +268,8 @@ The prompt references files that Rein seeds into the sandbox:
 | File | Seeded by | Contents | Referenced in prompt section |
 |---|---|---|---|
 | `LEARNINGS.md` | `learnings.py` (FR-091) | Copied from `.rein/LEARNINGS.md` in project root, or empty with `# Learnings` header. Extracted back after final verdict ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)). | Work Protocol |
-| `PROGRESS.md` | `sandbox.py` | Empty, agent writes to it | Work Protocol |
-| `DEFERRED.md` | `sandbox.py` | Empty, agent writes to it | Work Protocol, Constraints |
+| `PROGRESS.md` | `sandbox.py` (FR-094a) | Seeded with section template (Completed / In Progress / Blocked), 100-line advisory cap. Agent writes to it. On carry-forward retry, kept as-is; on fresh retry, reset to template ([ADR-015](docs/adr/ADR-015-progress-deferred-sandbox-seeding.md)). | Work Protocol |
+| `DEFERRED.md` | `sandbox.py` (FR-094b) | Seeded with header template. Agent writes to it. On carry-forward retry, kept as-is; on fresh retry, reset to template ([ADR-015](docs/adr/ADR-015-progress-deferred-sandbox-seeding.md)). | Work Protocol, Constraints |
 | `.rein/` | `sandbox.py` | Directory created for completion signal | Completion |
 
 These files are seeded *in addition to* the task's `files` field. The task author doesn't need to include them — Rein handles it.

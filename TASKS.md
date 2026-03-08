@@ -595,8 +595,8 @@ In addition to task-defined `files`, rein automatically seeds several files into
 | File | Source | Purpose |
 |------|--------|---------|
 | `LEARNINGS.md` | `.rein/LEARNINGS.md` from project root (or empty) | Operational knowledge carried across sessions. Injected at setup, extracted after final verdict. See [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md). |
-| `PROGRESS.md` | Empty | Agent writes progress after each commit |
-| `DEFERRED.md` | Empty | Agent logs pre-existing issues |
+| `PROGRESS.md` | Section template (Completed / In Progress / Blocked), 100-line advisory cap | Agent writes progress after each commit. On carry-forward retry, kept as-is; on fresh retry, reset to template. See [ADR-015](docs/adr/ADR-015-progress-deferred-sandbox-seeding.md). |
+| `DEFERRED.md` | Header template | Agent logs pre-existing issues. On carry-forward retry, kept as-is; on fresh retry, reset to template. See [ADR-015](docs/adr/ADR-015-progress-deferred-sandbox-seeding.md). |
 | `.rein/` | Directory | Namespace for rein artifacts (completion marker) |
 
 These files are seeded *after* task `files` but *before* `setup_commands` run. The task author does not need to include them.

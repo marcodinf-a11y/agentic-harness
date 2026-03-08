@@ -1,5 +1,7 @@
 # Rein — Architecture
 
+For the rationale behind key design decisions, see [Architecture Decision Records](docs/adr/).
+
 ## Glossary
 
 - **Task** — a unit of work defined by a JSON (or YAML) file. One task = one prompt + optional files, setup commands, and validation commands.
@@ -90,13 +92,14 @@ After the sandbox is created, seed files from `files` are written (overwriting o
 Every subprocess gets git author/committer environment variables so agent-authored commits are distinguishable from human commits in git history. Both `GIT_AUTHOR_*` and `GIT_COMMITTER_*` are set to the same values — no operator identity leaks into agent commits.
 
 ```
-GIT_AUTHOR_NAME="{agent}/{model_short}/{effort}"
+GIT_AUTHOR_NAME="{agent}/{model_short}"          # effort omitted when default
+GIT_AUTHOR_NAME="{agent}/{model_short}/{effort}"  # effort included when explicit
 GIT_AUTHOR_EMAIL="agent@rein.local"
-GIT_COMMITTER_NAME="{agent}/{model_short}/{effort}"
+GIT_COMMITTER_NAME="..."                          # same as AUTHOR
 GIT_COMMITTER_EMAIL="agent@rein.local"
 ```
 
-The name format uses short model aliases (`opus`, `sonnet`, `o3`, `flash`, `pro`) for readability. When effort is not specified (or resolves to the agent's default), the `/{effort}` segment is omitted:
+The name format uses short model aliases (`opus`, `sonnet`, `o3`, `flash`, `pro`) for readability. When effort is not specified (or resolves to the agent's default), the `/{effort}` segment is omitted entirely — do not emit `"default"` as a segment. See [ADR-001](docs/adr/ADR-001-agent-git-identity.md).
 
 | Agent | Model | Effort | Git Author |
 |-------|-------|--------|------------|
@@ -173,6 +176,8 @@ Each adapter parses the agent's stdout (JSON or JSONL), extracts the result text
 ### 5. Evaluation (`evaluate.py`)
 
 Runs `validation_commands` in the sandbox after the agent finishes. Scoring is binary — all commands pass (score 1.0) or any fails (score 0.0). Results are written to a structured JSON report (see [REPORTS.md](REPORTS.md)).
+
+**Completion promise:** Before running validation commands, the evaluator checks for a `.rein/complete` marker file in the sandbox. If present, the agent signaled that it believes the task is complete. The promise is cross-referenced against validation results to produce a four-outcome confidence classification: **confident**, **suspicious**, **overconfident**, or **incomplete**. See [ADR-002](docs/adr/ADR-002-completion-promise-signal.md) and [REPORTS.md](REPORTS.md) for the full matrix and report fields.
 
 **Validation timeout:** Each validation command has a fixed 60-second timeout. If a command doesn't exit within 60 seconds, Rein kills it (SIGTERM → 5s grace → SIGKILL) and records it as failed.
 

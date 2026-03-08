@@ -18,7 +18,7 @@ The initial release. One task, one agent, full lifecycle.
 
 **Included from research (low-effort, high-impact):**
 - ~~Agent git identity (`GIT_AUTHOR_NAME="{agent}/{model}/{effort}"`)~~ → documented in [ARCHITECTURE.md](ARCHITECTURE.md#agent-git-identity)
-- Completion promise signal (`.rein/complete` marker)
+- ~~Completion promise signal (`.rein/complete` marker)~~ → documented in [REPORTS.md](REPORTS.md#completion-confidence), [ADR-002](docs/adr/ADR-002-completion-promise-signal.md)
 - LEARNINGS.md seed file with 80-line cap
 - Structured escalation report on failure
 - Pre-dispatch specification validation

@@ -481,6 +481,12 @@ After the agent completes, Rein runs each entry in `validation_commands` inside 
 
 Scoring is binary: all commands exit 0 -> score 1.0, any non-zero -> score 0.0. Stdout/stderr are captured in the report. See [REPORTS.md](REPORTS.md) for scoring details.
 
+### Completion Promise
+
+In addition to validation commands, rein checks for a `.rein/complete` marker file in the sandbox. The agent writes this file when it believes the task is complete (instructed via the prompt — see [PROMPTS.md](PROMPTS.md#5-completion-signal-fr-090)). Rein cross-references the marker against validation results to produce a confidence classification: **confident**, **suspicious**, **overconfident**, or **incomplete**. See [REPORTS.md — Completion Confidence](REPORTS.md#completion-confidence) for the full matrix and [ADR-002](docs/adr/ADR-002-completion-promise-signal.md) for rationale.
+
+The completion promise is optional. Tasks without the prompt instruction will never produce a marker — `completion_promise=false` and confidence is determined by validation alone.
+
 ### Common Patterns (JSON)
 
 ```json

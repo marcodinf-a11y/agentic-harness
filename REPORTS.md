@@ -58,6 +58,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
             "validation_passed": true,
             "validation_output": "1\n2\nFizz\n4\nBuzz\n...",
             "score": 1.0,
+            "completion_promise": true,
+            "completion_confidence": "confident",
+            "completion_summary": "Implemented FizzBuzz with all edge cases. Tests pass.",
             "notes": ""
         }
     ],
@@ -81,6 +84,9 @@ Reports are saved to `results/{task_id}_{YYYYMMDD_HHMMSS}.json`. One report per 
 | `parse_error` | Exception message when NDJSON/JSONL parsing fails. `null` on success. When set, `normalized_tokens` is null and `result_text` is empty. |
 | `raw_output` | Raw stdout/stderr captured on parse failure. `null` on successful parse. |
 | `validation_passed` / `score` | Evaluation results from running validation commands. |
+| `completion_promise` | `boolean` — whether the agent wrote the `.rein/complete` marker file. |
+| `completion_confidence` | `"confident" \| "suspicious" \| "overconfident" \| "incomplete"` — cross-referenced outcome (see matrix below). |
+| `completion_summary` | Contents of the marker file (agent's self-assessment), or `null` if no marker. Empty string if marker exists but is empty. |
 
 ## Evaluation Scoring
 
@@ -90,6 +96,17 @@ Scoring is binary based on exit codes from [validation commands](TASKS.md):
 - Any command exits non-zero → `score = 0.0` (fail)
 
 Stdout/stderr from validation commands is captured in `validation_output` for debugging.
+
+### Completion Confidence
+
+The completion promise (`.rein/complete` marker file) is cross-referenced against validation results to classify confidence. See [ADR-002](docs/adr/ADR-002-completion-promise-signal.md).
+
+| Promise Filed | Validation Passed | Outcome | Interpretation |
+|--------------|-------------------|---------|---------------|
+| Yes | Yes | **Confident** | Agent believes it's done, and it is. |
+| No | Yes | **Suspicious** | Validation passes but agent didn't signal completion. May indicate weak validation or agent ran out of context. |
+| Yes | No | **Overconfident** | Agent claims done but validation fails. Possible hallucination or reward hacking. |
+| No | No | **Incomplete** | Agent didn't finish and validation confirms it. Expected for context-pressure kills and timeouts. |
 
 ## Output Directory
 

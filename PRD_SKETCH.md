@@ -154,7 +154,7 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 | FR-090 | Completion promise signal: check for `.rein/complete` marker, cross-reference with validation | ROADMAP.md | `evaluate.py` |
 | FR-091 | LEARNINGS.md injection: at sandbox setup, copy `.rein/LEARNINGS.md` from project root or create empty seed | ROADMAP.md | `learnings.py` |
 | FR-091a | LEARNINGS.md extraction: after final verdict, diff sandbox learnings against project root, validate entries (single line, `- ` prefix, ≤ 200 chars, no duplicates), merge, warn if > 80 lines ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)) | ROADMAP.md | `learnings.py` |
-| FR-092 | Structured escalation report on verdict "fail" | ROADMAP.md | `runner.py` |
+| FR-092 | Structured escalation report on verdict "fail": per-round failure narrative, `output_excerpt` extraction (30-line heuristic), progress classification (improved/stagnated/regressed), preserved state (branch/commit/diff_stat), opt-in LLM summary enrichment via `[escalation]` config ([ADR-012](docs/adr/ADR-012-structured-escalation-report.md)) | ROADMAP.md | `escalation.py`, `runner.py` |
 | FR-093 | Bounded retry cap (default 2, configurable per-task or CLI) | ROADMAP.md | `runner.py` |
 | FR-094 | Defense-in-depth prompt instruction (context pressure awareness in agent prompt) | ROADMAP.md | `runner.py` |
 | FR-095 | Deviation rules in task prompt template | ROADMAP.md | `runner.py` |

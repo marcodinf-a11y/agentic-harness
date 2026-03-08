@@ -143,6 +143,56 @@ Each report includes a `learnings` section documenting what operational knowledg
 | `total_lines` | Total line count in `.rein/LEARNINGS.md` after merge |
 | `warnings` | List of warning strings (e.g., "LEARNINGS.md exceeds 80 lines (currently 85), operator curation recommended") |
 
+## Escalation Report
+
+When the quality gate's final verdict is `"fail"` (all rounds exhausted), the report includes an `escalation_report` field — a self-contained failure narrative for the developer picking up the work. When the verdict is `"pass"` or `"warn"`, this field is `null`.
+
+The escalation report is defined and documented in [QUALITY_GATE.md](QUALITY_GATE.md#escalation-report) and [ADR-012](docs/adr/ADR-012-structured-escalation-report.md).
+
+```json
+{
+    "escalation_report": {
+        "task_summary": "Refactor auth module to use JWT",
+        "rounds_attempted": 2,
+        "max_rounds": 2,
+        "round_history": [
+            {
+                "round_number": 1,
+                "approach_summary": "Round 1: tests failed (2/5), review requested changes.",
+                "termination_reason": "completed",
+                "failing_signals": [
+                    {
+                        "name": "tests",
+                        "message": "2 of 5 tests failed (test_edge_case, test_empty_input)",
+                        "output_excerpt": "AssertionError: parse_input(None) raised TypeError"
+                    }
+                ],
+                "passing_signals": ["build", "lint", "context_pressure", "diff_size"]
+            }
+        ],
+        "diagnostic_summary": "Agent resolved 1 of 2 test failures across 2 rounds. Remaining: test_edge_case. Progress: improved.",
+        "preserved_state": {
+            "branch": "rein/refactor-auth-001-20260306",
+            "last_commit": "a1b2c3d",
+            "diff_stat": "5 files changed, 125 insertions(+), 30 deletions(-)"
+        },
+        "summary_agent_used": false
+    }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `task_summary` | Task name — quick identifier |
+| `rounds_attempted` / `max_rounds` | How many rounds ran vs. the configured limit |
+| `round_history[]` | Per-round failure narrative with failing/passing signals |
+| `round_history[].output_excerpt` | First 30 lines from failure marker, or last 30 lines. Full output in `rounds[].evaluation.validation_output` |
+| `diagnostic_summary` | Overall assessment with progress classification (`improved` / `stagnated` / `regressed`) |
+| `preserved_state` | Branch, commit SHA, diff stat — where to find the agent's work. `branch` is `null` for tempdir workspaces |
+| `summary_agent_used` | Whether opt-in LLM enrichment was used (configurable via `[escalation]` in `rein.toml`) |
+
+---
+
 ## Budget Analysis in Reports
 
 The `budget_analysis` block in each result entry provides a self-contained summary of token budget utilization, including a `cache_efficiency` sub-object that breaks out cache read and write tokens. For the full specification of budget tiers, normalized token accounting, and the warning/exceeded thresholds, see [TOKENS.md](TOKENS.md).

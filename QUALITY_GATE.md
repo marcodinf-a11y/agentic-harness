@@ -153,6 +153,16 @@ timeout_seconds = 180
 include_task_spec = true
 include_diff = true
 include_validation_output = true
+
+# ── Escalation Report ─────────────────────────────
+# Generated when final_verdict == "fail". Always includes a mechanical
+# summary; opt-in LLM enrichment via summary_agent. See ADR-012.
+
+[escalation]
+summary_agent = false              # Opt-in LLM-enriched summaries
+summary_model = "haiku"            # Cheap/fast model for summary
+summary_token_budget = 10000
+summary_timeout_seconds = 60
 ```
 
 ---
@@ -450,7 +460,7 @@ Round 2: Same sandbox (code from round 1 is already there)
          → Verdict: pass/fail/warn
          → round < max_rounds? No → stop, report final verdict
 
-If max_rounds exhausted with verdict "fail": escalate to human.
+If max_rounds exhausted with verdict "fail": generate escalation report (see below).
 ```
 
 ### Round 2+ Prompt
@@ -483,6 +493,48 @@ Fix these issues. The code is already in the working directory from your previou
 - The review agent runs fresh in each round — it does not carry context from previous reviews
 - `max_rounds` is configurable (default: 2). Setting `max_rounds = 1` disables retries.
 - **Learnings extraction happens once** after the final verdict (pass, warn, or fail), not after each round. This ensures only the final sandbox state — which reflects the cumulative work of all rounds — is persisted to `.rein/LEARNINGS.md`. See [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md).
+
+---
+
+## Escalation Report
+
+When the final verdict is `"fail"` (all rounds exhausted), rein generates a structured escalation report — a self-contained failure narrative for the developer picking up the work. See [ADR-012](docs/adr/ADR-012-structured-escalation-report.md).
+
+The escalation report is always generated mechanically (zero cost, zero failure modes). If `[escalation] summary_agent = true` in `rein.toml`, a summary agent enriches the `approach_summary` and `diagnostic_summary` fields with semantic context. On summary agent failure, the mechanical version is preserved.
+
+### What the escalation report contains
+
+| Field | Description |
+|-------|-------------|
+| `task_summary` | Task name — quick identifier |
+| `rounds_attempted` / `max_rounds` | How many rounds ran vs. the limit |
+| `round_history[]` | Per-round narrative: what failed, what passed, approach summary |
+| `diagnostic_summary` | Overall assessment with progress classification (improved/stagnated/regressed) |
+| `preserved_state` | Where to find the agent's work: branch, commit SHA, diff stat |
+| `summary_agent_used` | Whether LLM enrichment was used |
+
+### Progress classification
+
+Rein compares failing signals across rounds to classify progress:
+- **improved**: final round has fewer failing signals than round 1
+- **stagnated**: same number of failing signals
+- **regressed**: more failing signals than round 1
+
+### `output_excerpt` extraction
+
+Each failing signal includes an `output_excerpt` — enough context to be actionable without duplicating full output:
+1. Scan for failure markers (`FAILED`, `FAIL:`, `Error:`, `AssertionError`, etc.)
+2. If found: up to 30 lines from the first marker
+3. If not found: last 30 lines of output
+4. Full output remains in `rounds[].evaluation.validation_output`
+
+### Implementation module
+
+`escalation.py` provides:
+- `build_report(rounds, task, config) -> dict`
+- `mechanical_summary(rounds) -> str`
+- `extract_output_excerpt(validation_output, max_lines=30) -> str | None`
+- `classify_progress(rounds) -> str`
 
 ---
 
@@ -721,6 +773,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
         "total_lines": 8,
         "warnings": []
     },
+    "escalation_report": null,
     "final_verdict": "pass",
     "total_rounds": 2,
     "total_tokens": {
@@ -754,6 +807,7 @@ The quality gate extends the existing report format from [REPORTS.md](REPORTS.md
 | `rounds[]` | Each round bundles its agent result, evaluation, and quality gate verdict |
 | `rounds[].quality_gate` | Per-round aggregate verdict and signal breakdown |
 | `learnings` | Extraction results: new entries added, total line count, warnings ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)) |
+| `escalation_report` | Structured failure narrative when `final_verdict == "fail"`, otherwise `null` ([ADR-012](docs/adr/ADR-012-structured-escalation-report.md)) |
 | `final_verdict` | The verdict from the last round — the one that matters |
 | `total_rounds` | How many rounds were needed (1 = first attempt passed) |
 | `total_tokens` | Aggregate across all rounds, split by implementation vs review |
@@ -1045,7 +1099,7 @@ In review mode:
 |------|-------------|
 | [TOKENS.md](TOKENS.md) | `context_pressure` signal reads from the same `ContextPressure` model. `ZoneConfig` in rein.toml replaces the standalone YAML config example. |
 | [SESSIONS.md](SESSIONS.md) | Zone actions (graceful stop, immediate kill) remain unchanged. The quality gate runs **after** the agent finishes or is stopped. |
-| [REPORTS.md](REPORTS.md) | The extended report format supersedes the flat `results[]`/`evaluations[]` structure. Single-round runs without quality gate remain compatible. |
+| [REPORTS.md](REPORTS.md) | The extended report format supersedes the flat `results[]`/`evaluations[]` structure. Single-round runs without quality gate remain compatible. `escalation_report` field added for terminal failures ([ADR-012](docs/adr/ADR-012-structured-escalation-report.md)). |
 | [TASKS.md](TASKS.md) | Task definitions are unchanged. `validation_commands` feeds the `tests` signal. `token_budget` and `timeout_seconds` apply per-round. |
 | [AGENTS.md](AGENTS.md) | Agent adapters are unchanged. The review agent is invoked through the same adapter interface. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The quality gate is a new subsystem between Output Capture and the final Report step. The execution flow gains a round loop around steps 6-12. Learnings extraction ([ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)) runs after the final verdict. |

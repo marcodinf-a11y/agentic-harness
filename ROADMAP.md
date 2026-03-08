@@ -20,7 +20,7 @@ The initial release. One task, one agent, full lifecycle.
 - ~~Agent git identity (`GIT_AUTHOR_NAME="{agent}/{model}/{effort}"`)~~ → documented in [ARCHITECTURE.md](ARCHITECTURE.md#agent-git-identity)
 - ~~Completion promise signal (`.rein/complete` marker)~~ → documented in [REPORTS.md](REPORTS.md#completion-confidence), [ADR-002](docs/adr/ADR-002-completion-promise-signal.md)
 - ~~LEARNINGS.md seed file with 80-line cap~~ → documented in [ARCHITECTURE.md](ARCHITECTURE.md#learningsmd-injection-and-extraction), [PROMPTS.md](PROMPTS.md#3-work-protocol-defense-in-depth--fr-094), [ADR-011](docs/adr/ADR-011-learnings-extraction-after-final-verdict.md)
-- Structured escalation report on failure
+- ~~Structured escalation report on failure~~ → documented in [QUALITY_GATE.md](QUALITY_GATE.md#escalation-report), [REPORTS.md](REPORTS.md#escalation-report), [ADR-012](docs/adr/ADR-012-structured-escalation-report.md)
 - Pre-dispatch specification validation
 - Bounded retry cap (default 2)
 - Defense-in-depth prompt instruction (context pressure awareness)
@@ -96,6 +96,7 @@ Ordered by dependency. From `response.md` analysis — zero source code exists y
 | `evaluate.py` | Run validation commands, binary scoring | Low |
 | `sandbox.py` | tempdir/worktree/copy creation, file seeding, setup commands, cleanup | Medium |
 | `learnings.py` | LEARNINGS.md injection (copy to sandbox), extraction (diff, validate, merge back), structural validation | Low |
+| `escalation.py` | Escalation report on terminal failure: mechanical summary, output excerpt extraction, progress classification, opt-in LLM enrichment ([ADR-012](docs/adr/ADR-012-structured-escalation-report.md)) | Low |
 | `agents/claude.py` | Invoke `claude -p --output-format stream-json`, parse NDJSON, normalize tokens | Medium |
 | `monitor.py` | Real-time stream parsing, zone classification, kill signaling | High |
 | `runner.py` | Orchestrator: sandbox, invoke, monitor, capture, evaluate, report | High |

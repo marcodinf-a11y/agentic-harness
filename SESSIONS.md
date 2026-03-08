@@ -46,6 +46,7 @@ A "session" in rein is a single task execution: one task dispatched to one agent
                  Validate new entries, merge back (see ADR-011)
                  │
 8. REPORT       Generate structured JSON report
+                 If final_verdict == "fail": generate escalation report (ADR-012)
                  Save to results/{task_id}_{timestamp}.json
                  │
 9. CLEANUP      Remove sandbox directory

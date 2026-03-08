@@ -114,9 +114,9 @@ Two trigger conditions: (1) **static** — agent/mode known to lack mid-run toke
 
 Empty `validation_commands` → `score: null`, `validation_passed: null` (no validation ran — distinct from pass or fail). Quality gate `tests` signal gets `status: "skip"`. Completion confidence matrix expanded from 4 to 6 outcomes: added `"unverified"` (promise + no validation) and `"unevaluated"` (no promise + no validation). Escalation report accepts `"unverified"` as a third confidence value. Updated in FR-067, ADR-002, ADR-012, ARCHITECTURE.md, REPORTS.md, QUALITY_GATE.md.
 
-### S-4: FR-092 "30-line heuristic" unspecified
+### S-4: FR-092 "30-line heuristic" unspecified — RESOLVED
 
-`output_excerpt` uses a "30-line heuristic" — from where? Last 30 lines of stdout? First 30? Tail of the result text? Needs one sentence.
+Already specified in [ADR-012](adr/ADR-012-structured-escalation-report.md) §`output_excerpt` extraction: scan for failure markers (`FAILED`, `Error:`, `AssertionError`, etc.) → 30 lines from first marker; no marker → last 30 lines; empty output → `null`.
 
 ### S-5: FR-021 git identity source
 

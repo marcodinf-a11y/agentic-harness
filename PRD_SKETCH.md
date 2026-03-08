@@ -35,6 +35,7 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 |----|-------------|--------|--------|
 | FR-010 | Create tempdir sandbox (empty temp directory) | ARCHITECTURE.md | `sandbox.py` |
 | FR-011 | Create worktree sandbox (`git worktree add` from source repo, detached branch `rein/<task_id>`) | ARCHITECTURE.md | `sandbox.py` |
+| FR-011a | Default source to cwd: if `workspace.type` is `worktree` or `copy` and neither CLI `--source` nor task `workspace.source` is provided, default to cwd. Fail if cwd is not a git repo for worktree type | TASKS.md | `sandbox.py` |
 | FR-012 | Create copy sandbox (copy source tree into temp directory, `git init` if non-git source) | ARCHITECTURE.md | `sandbox.py` |
 | FR-013 | Seed files from task `files` field into sandbox (create directories as needed) | TASKS.md | `sandbox.py` |
 | FR-014 | Run `setup_commands` in sandbox after seeding | TASKS.md | `sandbox.py` |
@@ -133,7 +134,8 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 
 | ID | Requirement | Source | Module |
 |----|-------------|--------|--------|
-| FR-080 | `rein run` command with flags: `-t`, `-a`, `-m`, `--effort`, `-o`, `--budget`, `--timeout`, `--spec-check`, `-y`/`--yes`, `--dry-run` | ARCHITECTURE.md | `cli.py` |
+| FR-080 | `rein run` command with flags: `-t`, `-a`, `-m`, `--effort`, `-o`, `--budget`, `--timeout`, `--source`, `--spec-check`, `-y`/`--yes`, `--dry-run` | ARCHITECTURE.md | `cli.py` |
+| FR-080a | `--source PATH` CLI flag: overrides `workspace.source` from task JSON. Allows running the same task against different repos. Resolution: CLI `--source` > task `workspace.source` > cwd (FR-011a) | TASKS.md | `cli.py` |
 | FR-081 | `rein list agents` shows available/missing agents with paths and versions | ARCHITECTURE.md | `cli.py` |
 | FR-082 | `rein report` generates summary from results | ARCHITECTURE.md | `cli.py` |
 | FR-083 | `--dry-run` shows what would execute without running | ARCHITECTURE.md | `cli.py` |

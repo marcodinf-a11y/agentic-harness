@@ -52,9 +52,16 @@ FR-085/086 describe the two-layer config and resolution order, but no FR covers 
 | FR-085b | Config schema with sections: `[project]` (name), `[defaults]` (agent, model, effort, token_budget, timeout_seconds, max_rounds), `[spec_validation]` (mode, min_prompt_length, require_validation_commands), `[context_pressure]` (green_max_pct, yellow_max_pct, per-model overrides), `[models]` (per-model context_window), `[prompt_assembly]` (include_preamble, include_work_protocol, include_deviation_rules, include_completion_signal), `[escalation]` (summary_agent, summary_model, summary_token_budget, summary_timeout_seconds), `[quality_gate.*]` (per-signal: enabled, required, commands; plus signal-specific keys). Full schema documented in QUALITY_GATE.md. | `config.py` |
 | FR-085c | Resolution order: CLI flags > project `.rein/rein.toml` > global `~/.config/rein/rein.toml` > built-in defaults. For agent/model/effort: task field > CLI flag > config > defaults. | `config.py` |
 
-### G-4: No FR for workspace source path
+### G-4: Workspace source path — RESOLVED (downgraded to enhancement)
 
-FR-011/012 reference "source repo" and "source tree" but no FR or CLI flag specifies how the user provides the source path. Needs a `--source` flag or task-level `source` field, with clear default (cwd).
+TASKS.md already defines `workspace.source` as a task-level field with JSON schema validation (required for worktree/copy). The core requirement is covered. Two convenience enhancements added:
+
+#### Proposed FRs
+
+| ID | Requirement | Module |
+|----|-------------|--------|
+| FR-080a | `--source PATH` CLI flag: overrides `workspace.source` from task JSON. Allows running the same task definition against different repos without editing the JSON. Resolution: CLI `--source` > task `workspace.source`. | `cli.py` |
+| FR-011a | Default source to cwd: if `workspace.type` is `worktree` or `copy` and neither CLI `--source` nor task `workspace.source` is provided, default to the current working directory. Fail if cwd is not a git repo for worktree type. | `sandbox.py` |
 
 ### G-5: No FR for diff capture mechanism
 

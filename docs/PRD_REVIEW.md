@@ -86,9 +86,9 @@ Diff patch and stat go into the JSON report. Patch also written as a standalone 
 
 Resolved in G-3. Format is `rein.toml` everywhere. FR-085/086 in PRD_SKETCH.md updated.
 
-### I-2: FR-060 scope ambiguity
+### I-2: FR-060 scope ambiguity — RESOLVED
 
-Text says "on termination by Rein" but doesn't clarify behavior for `completed` runs where the agent already committed. Should state: only runs when Rein terminates the agent (context pressure or timeout), skipped on natural completion.
+FR-060 now runs unconditionally on any termination reason (defense-in-depth). Checks `git status` first — no-op if nothing uncommitted. Commit message uses `rein:` prefix with termination reason to distinguish Rein's safety commit from the agent's deliberate work.
 
 ### I-3: FR-047 signal mapping includes non-MVP agents
 

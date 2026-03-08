@@ -99,7 +99,7 @@ See [BRIEF.md](BRIEF.md) for full problem statement and positioning.
 
 | ID | Requirement | Source | Module |
 |----|-------------|--------|--------|
-| FR-060 | On termination by Rein: commit uncommitted changes in sandbox (`git add -A && git commit`) | SESSIONS.md | `runner.py` |
+| FR-060 | On session end (any `termination_reason`): check for uncommitted changes in sandbox. If present, `git add -A && git commit` with message `rein: uncommitted work captured at session end (termination_reason=<reason>)`. Runs unconditionally — defense-in-depth against agents that fail to commit | SESSIONS.md | `runner.py` |
 | FR-061 | Write per-run log file with termination metrics (task ID, agent, zone, tokens, turns, signal, duration) | SESSIONS.md | `runner.py` |
 | FR-062 | Update PROGRESS.md with task summary (what was attempted, zone, what was captured) | SESSIONS.md | `runner.py` |
 | FR-063 | Set `termination_reason` field: `completed`, `timed_out`, `context_pressure`, or `error` | SESSIONS.md | `runner.py` |
